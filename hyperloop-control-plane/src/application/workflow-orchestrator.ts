@@ -418,6 +418,11 @@ export class WorkflowOrchestrator {
     service.expectedCommitSha = input.commitSha;
     service.mrIid = input.mrIid;
 
+    if (workflow.status === 'CODING') {
+      assertTransition(workflow.status, 'AWAITING_CI');
+      workflow.status = 'AWAITING_CI';
+    }
+
     workflow.desiredJobs.push({
       jobId: input.jobId,
       stage: 'coding',
@@ -434,7 +439,7 @@ export class WorkflowOrchestrator {
       if (candidate.state !== 'PENDING') continue;
       const depsCoded = candidate.dependsOn.every((dep) => {
         const state = workflow.services[dep]?.state;
-        return state === 'AWAITING_CI' || state === 'READY';
+        return state === 'AWAITING_CI' || state === 'READY' || state === 'MERGED';
       });
       if (depsCoded) {
         candidate.state = 'CODING';
@@ -490,6 +495,14 @@ export class WorkflowOrchestrator {
     workflow.timeline.push({ at: workflow.updatedAt, type: 'RESUMED', detail: next });
     await this.deps.repository.updateConditional(workflow, expectedVersion);
     return workflow;
+  }
+
+  /** Persist a mutated workflow after CI / merge decisions (conditional write). */
+  async saveConditional(
+    workflow: WorkflowRecord,
+    expectedVersion: number,
+  ): Promise<void> {
+    await this.deps.repository.updateConditional(workflow, expectedVersion);
   }
 
   private async requireWorkflow(workflowId: string): Promise<WorkflowRecord> {

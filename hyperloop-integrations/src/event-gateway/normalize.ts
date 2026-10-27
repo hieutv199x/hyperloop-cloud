@@ -45,8 +45,15 @@ export function normalizeCiResult(input: {
   mrIid: number;
   commitSha: string;
   pipelineId: string;
-  status: 'SUCCESS' | 'FAILURE';
+  status: 'SUCCESS' | 'FAILURE' | 'ABORTED' | 'UNSTABLE';
+  buildId?: string;
+  gateFailures?: Array<{
+    gate: string;
+    classification: 'fixable' | 'non_fixable';
+    message: string;
+  }>;
   reportUri?: string;
+  logUri?: string;
 }): NormalizedWorkflowEvent {
   return {
     eventId: input.eventId,
@@ -55,7 +62,18 @@ export function normalizeCiResult(input: {
     workflowId: input.workflowId,
     correlationId: input.eventId,
     schemaVersion: '1.0.0',
-    payload: { ...input },
+    payload: {
+      workflowId: input.workflowId,
+      repository: input.repository,
+      mrIid: input.mrIid,
+      commitSha: input.commitSha,
+      pipelineId: input.pipelineId,
+      status: input.status,
+      buildId: input.buildId,
+      gateFailures: input.gateFailures,
+      reportUri: input.reportUri,
+      logUri: input.logUri,
+    },
   };
 }
 

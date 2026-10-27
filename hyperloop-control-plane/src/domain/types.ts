@@ -63,6 +63,7 @@ export type ServiceExecutionState =
   | 'AWAITING_CI'
   | 'FIXING'
   | 'READY'
+  | 'MERGED'
   | 'FAILED'
   | 'NEEDS_HUMAN';
 
@@ -75,6 +76,10 @@ export interface ServiceExecution {
   expectedCommitSha?: string;
   mrIid?: number;
   fixAttempts: number;
+  /** Dedupes Jenkins callbacks; duplicate pipelineId → no-op. */
+  seenPipelineIds?: string[];
+  lastCiReportUri?: string;
+  mergeCommitSha?: string;
 }
 
 export interface WorkflowRecord {

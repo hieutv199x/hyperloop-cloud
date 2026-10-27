@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/mr-merged.schema.json",
+  "title": "MrMerged",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workflowId", "repository", "mrIid", "mergeCommitSha"],
+  "properties": {
+    "workflowId": { "type": "string", "minLength": 1 },
+    "repository": { "type": "string", "minLength": 1 },
+    "mrIid": { "type": "integer", "minimum": 1 },
+    "mergeCommitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+  }
+}

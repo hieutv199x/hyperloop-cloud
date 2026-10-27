@@ -5,10 +5,12 @@ import type {
 import { DEVSPEC_EVENTS_QUEUE } from '@hyperloop/integrations';
 import type { DevSpecDocument } from '../domain/types.js';
 import type { WorkflowOrchestrator } from '../application/workflow-orchestrator.js';
+import type { CiDecisionService } from '../application/ci-decision-service.js';
 
 export interface EventConsumerDeps {
   eventBus: EventBus;
   orchestrator: WorkflowOrchestrator;
+  ciDecision?: CiDecisionService;
   queueName?: string;
 }
 
@@ -34,10 +36,10 @@ export class EventConsumer {
         await this.handleSddSubmitted(event);
         return;
       case 'CI_RESULT_RECEIVED':
-        // M5: CiDecisionService
+        await this.handleCiResult(event);
         return;
       case 'MR_MERGED':
-        // M5: merge aggregation
+        await this.handleMrMerged(event);
         return;
       default:
         return;
@@ -65,6 +67,42 @@ export class EventConsumer {
       sddCommitSha: payload.sddCommitSha,
       sddPath: payload.sddPath,
       devSpec: payload.devSpec,
+    });
+  }
+
+  private async handleCiResult(event: NormalizedWorkflowEvent): Promise<void> {
+    if (!this.deps.ciDecision) return;
+    const payload = event.payload as {
+      workflowId: string;
+      repository: string;
+      mrIid: number;
+      commitSha: string;
+      pipelineId: string;
+      status: 'SUCCESS' | 'FAILURE' | 'ABORTED' | 'UNSTABLE';
+      gateFailures?: Array<{
+        gate: string;
+        classification: 'fixable' | 'non_fixable';
+        message: string;
+      }>;
+      reportUri?: string;
+    };
+    await this.deps.ciDecision.handleCiResult({
+      eventId: event.eventId,
+      ...payload,
+    });
+  }
+
+  private async handleMrMerged(event: NormalizedWorkflowEvent): Promise<void> {
+    if (!this.deps.ciDecision) return;
+    const payload = event.payload as {
+      workflowId: string;
+      repository: string;
+      mrIid: number;
+      mergeCommitSha: string;
+    };
+    await this.deps.ciDecision.handleMrMerged({
+      eventId: event.eventId,
+      ...payload,
     });
   }
 }

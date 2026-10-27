@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { verifySharedSecret } from '../common/auth.js';
 import { DevSpecChangeDetector } from '../gitlab/dev-spec-change-detector.js';
+import { JenkinsCallbackParser } from '../jenkins/callback.js';
 import {
   DEVSPEC_EVENTS_QUEUE,
   type EventBus,
@@ -148,20 +149,25 @@ export function buildEventGateway(options: EventGatewayOptions) {
       mrIid?: number;
       commitSha?: string;
       pipelineId?: string;
-      status?: 'SUCCESS' | 'FAILURE';
+      status?: 'SUCCESS' | 'FAILURE' | 'ABORTED' | 'UNSTABLE';
+      buildId?: string;
+      gateFailures?: Array<{
+        gate: string;
+        classification: 'fixable' | 'non_fixable';
+        message: string;
+      }>;
       reportUri?: string;
+      logUri?: string;
     };
 
-    if (
-      !body.eventId ||
-      !body.occurredAt ||
-      !body.workflowId ||
-      !body.repository ||
-      body.mrIid == null ||
-      !body.commitSha ||
-      !body.pipelineId ||
-      !body.status
-    ) {
+    if (!body.eventId || !body.occurredAt) {
+      return reply.code(400).send({ error: 'Invalid Jenkins CI payload' });
+    }
+
+    let parsed;
+    try {
+      parsed = new JenkinsCallbackParser().parse(body);
+    } catch {
       return reply.code(400).send({ error: 'Invalid Jenkins CI payload' });
     }
 
@@ -172,13 +178,16 @@ export function buildEventGateway(options: EventGatewayOptions) {
     const event = normalizeCiResult({
       eventId: body.eventId,
       occurredAt: body.occurredAt,
-      workflowId: body.workflowId,
-      repository: body.repository,
-      mrIid: body.mrIid,
-      commitSha: body.commitSha,
-      pipelineId: body.pipelineId,
-      status: body.status,
-      reportUri: body.reportUri,
+      workflowId: parsed.workflowId,
+      repository: parsed.repository,
+      mrIid: parsed.mrIid,
+      commitSha: parsed.commitSha,
+      pipelineId: parsed.pipelineId,
+      status: parsed.status,
+      buildId: parsed.buildId,
+      gateFailures: parsed.gateFailures,
+      reportUri: parsed.reportUri,
+      logUri: parsed.logUri,
     });
 
     try {
