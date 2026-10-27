@@ -12,6 +12,10 @@ export type {
 export type { PlannerDevSpec, ImplementationSpecDocument } from './roles/planner/build-implementation-spec.js';
 export { runCoding, workflowMarker } from './roles/coding/index.js';
 export type { CodingInput, CodingGitLabPort } from './roles/coding/index.js';
+export { runFix } from './roles/fix/index.js';
+export type { FixInput } from './roles/fix/index.js';
+export { invokeKiroFix } from './runner/kiro-fix.js';
+
 export { InMemoryArtifactStore } from './artifacts/memory-store.js';
 export {
   buildArtifactUri,

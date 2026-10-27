@@ -1,6 +1,7 @@
 import { runCoding, type CodingInput } from '../roles/coding/index.js';
-import { runFix } from '../roles/fix/index.js';
+import { runFix, type FixInput } from '../roles/fix/index.js';
 import { runPlanner, type PlannerInput } from '../roles/planner/index.js';
+
 
 export interface AgentInput {
   stage: string;
@@ -29,7 +30,7 @@ export interface AgentOutput {
 }
 
 export async function runAgent(
-  input: AgentInput | PlannerInput | CodingInput,
+  input: AgentInput | PlannerInput | CodingInput | FixInput,
 ): Promise<AgentOutput> {
   switch (input.stage) {
     case 'planner':
