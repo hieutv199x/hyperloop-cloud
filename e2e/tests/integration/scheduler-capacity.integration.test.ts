@@ -8,8 +8,10 @@ import { DEFAULT_SCHEDULER_CONFIG } from '../../../hyperloop-control-plane/src/s
 import { PriorityPolicy } from '../../../hyperloop-control-plane/src/scheduler/priority-policy.js';
 
 const endpoint = process.env.AWS_ENDPOINT_URL ?? 'http://127.0.0.1:18000';
-const table = process.env.DYNAMODB_TABLE ?? 'hyperloop-workflows-dev';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+/** Fresh table per run so leftover QUEUED rows from prior suites don't pollute counts. */
+const table =
+  process.env.DYNAMODB_TABLE ?? `hyperloop-workflows-cap-${Date.now()}`;
 
 async function dynamoReady(): Promise<boolean> {
   try {
@@ -76,6 +78,7 @@ describe('P7 DynamoDB capacity (150 intents / 3 workers)', () => {
     const store = new DynamoDbSchedulerStore(table, config, client);
     await store.ensureCapacityInitialized();
     await store.setCapacityLimit(100);
+    await store.resetCapacityUsed();
 
     const policy = new PriorityPolicy(config);
     const taskIds: string[] = [];

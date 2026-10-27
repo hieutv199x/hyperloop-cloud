@@ -2,7 +2,7 @@ import type { SddManifest, SddServiceDeclaration } from './types.js';
 
 /**
  * Deterministic resolver: executable targets come only from SDD declarations.
- * No external service catalog / Graphify / Jira lookup.
+ * No external service catalog lookup at runtime.
  */
 export class SddServiceResolver {
   resolve(manifest: SddManifest): SddServiceDeclaration[] {

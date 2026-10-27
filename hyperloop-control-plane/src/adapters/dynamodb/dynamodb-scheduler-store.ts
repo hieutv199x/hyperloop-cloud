@@ -516,6 +516,19 @@ export class DynamoDbSchedulerStore implements SchedulerStorePort {
     );
   }
 
+  /** Test/ops helper: force used=0 (does not delete reservations). */
+  async resetCapacityUsed(): Promise<void> {
+    await this.ensureCapacityInitialized();
+    await this.doc.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { pk: CAPACITY_PK, sk: CAPACITY_SK },
+        UpdateExpression: 'SET used = :zero, version = version + :one',
+        ExpressionAttributeValues: { ':zero': 0, ':one': 1 },
+      }),
+    );
+  }
+
   async listActiveReservationsMissingSchedule(): Promise<
     Array<{ task: ReadyTask; reservation: Reservation }>
   > {

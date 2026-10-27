@@ -16,10 +16,17 @@ export interface KiroFixResponse {
 }
 
 export async function invokeKiroFix(request: KiroFixRequest): Promise<KiroFixResponse> {
-  if (process.env.HYPERLOOP_KIRO_ENABLED === 'true') {
-    throw new Error(
-      'Kiro CLI enabled but fix headless flags are not pinned yet — complete the spike first',
-    );
+  const { execKiro, parseKiroJsonStdout, resolveKiroMode } = await import('./kiro-cli.js');
+  if (resolveKiroMode() === 'real') {
+    const argsEnv = process.env.HYPERLOOP_KIRO_ARGS;
+    if (!argsEnv) {
+      throw new Error(
+        'Kiro CLI real mode requires HYPERLOOP_KIRO_ARGS — complete docs/spikes/kiro-cli-headless.md',
+      );
+    }
+    const args = JSON.parse(argsEnv) as string[];
+    const result = await execKiro({ args });
+    return parseKiroJsonStdout<KiroFixResponse>(result.stdout);
   }
 
   return {

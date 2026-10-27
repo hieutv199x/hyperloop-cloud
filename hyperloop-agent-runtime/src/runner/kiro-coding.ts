@@ -17,10 +17,17 @@ export interface KiroCodingResponse {
 export async function invokeKiroCoding(
   request: KiroCodingRequest,
 ): Promise<KiroCodingResponse> {
-  if (process.env.HYPERLOOP_KIRO_ENABLED === 'true') {
-    throw new Error(
-      'Kiro CLI enabled but coding headless flags are not pinned yet — complete the spike first',
-    );
+  const { execKiro, parseKiroJsonStdout, resolveKiroMode } = await import('./kiro-cli.js');
+  if (resolveKiroMode() === 'real') {
+    const argsEnv = process.env.HYPERLOOP_KIRO_ARGS;
+    if (!argsEnv) {
+      throw new Error(
+        'Kiro CLI real mode requires HYPERLOOP_KIRO_ARGS — complete docs/spikes/kiro-cli-headless.md',
+      );
+    }
+    const args = JSON.parse(argsEnv) as string[];
+    const result = await execKiro({ args });
+    return parseKiroJsonStdout<KiroCodingResponse>(result.stdout);
   }
 
   // Deterministic local simulator for vertical-slice tests.
