@@ -1,0 +1,27 @@
+apiVersion: hyperloop.dev/v1
+kind: SDDPackage
+metadata:
+  devSpecId: PAY-1234
+  project: payment-sdd
+spec:
+  devSpecPath: 04-development/PAY-1234/dev-spec.yaml
+  requirements:
+    - 02-requirements/PAY-1234.md
+  analysis:
+    - 03-design/analysis.md
+  designs:
+    - 03-design/architecture.md
+  acceptanceCriteria:
+    - 04-development/PAY-1234/acceptance-criteria.md
+  services:
+    - name: payment-api
+      repository: group/payment-api
+      workingBranch: feature/PAY-1234
+      targetBranch: release/2.5.0
+      dependsOn:
+        - wallet-service
+    - name: wallet-service
+      repository: group/wallet-service
+      workingBranch: feature/PAY-1234
+      targetBranch: release/2.5.0
+      dependsOn: []

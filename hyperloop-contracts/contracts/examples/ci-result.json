@@ -1,0 +1,18 @@
+{
+  "workflowId": "WF#PAY-1234#1",
+  "repository": "coc-ewallet-service",
+  "mrIid": 42,
+  "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "pipelineId": "jenkins-coc-ewallet-1001",
+  "buildId": "1001",
+  "status": "FAILURE",
+  "gateFailures": [
+    {
+      "gate": "unit-tests",
+      "classification": "fixable",
+      "message": "TransferValidationTest failed"
+    }
+  ],
+  "reportUri": "s3://hyperloop-artifacts/wf-PAY-1234-1/ci/coc-ewallet-service/1001/report.html",
+  "logUri": "s3://hyperloop-artifacts/wf-PAY-1234-1/ci/coc-ewallet-service/1001/console.log"
+}

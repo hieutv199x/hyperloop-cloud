@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/job-reservation.schema.json",
+  "title": "JobReservation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskId", "attempt", "state", "k8sJobName", "createdAt"],
+  "properties": {
+    "taskId": { "type": "string", "minLength": 1 },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "state": {
+      "type": "string",
+      "enum": ["ACTIVE", "RELEASED", "ABANDONED"]
+    },
+    "k8sJobName": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "lastObservedAt": { "type": "string", "format": "date-time" },
+    "releasedAt": { "type": "string", "format": "date-time" }
+  }
+}

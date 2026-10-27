@@ -1,0 +1,14 @@
+{
+  "eventId": "evt-001",
+  "eventType": "gitlab.sdd.dev_spec_submitted.v1",
+  "occurredAt": "2026-10-27T05:00:00.000Z",
+  "workflowId": "WF#PAY-1234#1",
+  "correlationId": "corr-001",
+  "schemaVersion": "1.0.0",
+  "payload": {
+    "project": "transaction-banking",
+    "sddCommitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path": "04-dev-specs/PAY-1234/dev-spec.yaml",
+    "revision": 1
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "apiVersion": "hyperloop.dev/v1",
+  "kind": "ImplementationSpec",
+  "metadata": {
+    "workflowId": "WF#PAY-1234#1",
+    "specHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "revision": 1,
+    "sourceDevSpecRevision": 1
+  },
+  "spec": {
+    "summary": "Implement PAY-1234",
+    "services": [
+      {
+        "repository": "coc-ewallet-service",
+        "workingBranch": "feature/PAY-1234",
+        "targetBranch": "release/2.5.0",
+        "changeSummary": "Add transfer validation",
+        "dependsOn": []
+      }
+    ],
+    "dag": {
+      "nodes": ["coc-ewallet-service"],
+      "edges": []
+    }
+  }
+}

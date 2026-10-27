@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hyperloop-agent-egress
+  namespace: hyperloop-agents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: hyperloop
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Placeholder CIDRs / FQDNs for GitLab, Nexus, S3, Kiro — tighten per environment.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

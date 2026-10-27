@@ -1,0 +1,10 @@
+{
+  "taskId": "task-coding-coc-ewallet-service-1",
+  "workflowId": "WF#PAY-1234#1",
+  "stage": "coding",
+  "repository": "coc-ewallet-service",
+  "priority": 50,
+  "readyAt": "2026-10-27T05:10:00.000Z",
+  "attempt": 1,
+  "project": "transaction-banking"
+}

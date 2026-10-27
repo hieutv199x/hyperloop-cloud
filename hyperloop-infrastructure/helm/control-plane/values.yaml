@@ -1,0 +1,43 @@
+replicaCount: 2
+
+image:
+  repository: nexus.example/hyperloop/control-plane
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+env:
+  GLOBAL_MAX_CONCURRENT_JOBS: "100"
+  AGENT_NAMESPACE: hyperloop-agents
+  DYNAMODB_TABLE: hyperloop-workflows-dev
+  ARTIFACTS_BUCKET: hyperloop-artifacts-dev
+  SCHEDULER_POLL_INTERVAL_SECONDS: "5"
+  SCHEDULER_RECONCILE_INTERVAL_SECONDS: "30"
+  SQS_PLANNER_QUEUE: hyperloop-planner-queue-dev
+  SQS_CODING_QUEUE: hyperloop-coding-queue-dev
+  SQS_FIX_QUEUE: hyperloop-fix-queue-dev
+
+scheduler:
+  globalMaxConcurrentJobs: 100
+  priorities:
+    fix: 100
+    coding: 50
+    planner: 10
+  softTargets:
+    fix: 20
+    coding: 65
+    planner: 15
+  fairness:
+    agingEnabled: true
+    perProjectLimit: null
+
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

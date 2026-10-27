@@ -1,0 +1,19 @@
+{
+  "globalMaxConcurrentJobs": 100,
+  "pollIntervalSeconds": 5,
+  "reconciliationIntervalSeconds": 30,
+  "priorities": {
+    "fix": 100,
+    "coding": 50,
+    "planner": 10
+  },
+  "softTargets": {
+    "fix": 20,
+    "coding": 65,
+    "planner": 15
+  },
+  "fairness": {
+    "agingEnabled": true,
+    "perProjectLimit": null
+  }
+}

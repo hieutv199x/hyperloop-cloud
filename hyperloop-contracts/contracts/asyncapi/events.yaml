@@ -1,0 +1,27 @@
+asyncapi: 3.0.0
+info:
+  title: Hyperloop Events
+  version: 0.1.0
+channels:
+  gitlabSddSubmitted:
+    address: gitlab.sdd.dev_spec_submitted.v1
+  specDecision:
+    address: hyperloop.spec_decision.v1
+  jenkinsCiCompleted:
+    address: jenkins.ci_completed.v1
+  gitlabMrMerged:
+    address: gitlab.mr_merged.v1
+  agentJobRequested:
+    address: agent.job_requested.v1
+  agentJobCompleted:
+    address: agent.job_completed.v1
+  notificationRequested:
+    address: hyperloop.notification_requested.v1
+  agentJobReady:
+    address: agent.job_ready.v1
+  agentSlotReleased:
+    address: agent.slot_released.v1
+  agentDispatchFailed:
+    address: agent.dispatch_failed.v1
+components:
+  messages: {}

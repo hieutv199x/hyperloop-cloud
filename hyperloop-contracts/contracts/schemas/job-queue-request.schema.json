@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/job-queue-request.schema.json",
+  "title": "JobQueueRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskId", "workflowId", "stage", "priority", "readyAt", "attempt"],
+  "properties": {
+    "taskId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "minLength": 1 },
+    "stage": { "type": "string", "enum": ["planner", "coding", "fix"] },
+    "repository": { "type": "string" },
+    "priority": { "type": "integer", "minimum": 0 },
+    "readyAt": { "type": "string", "format": "date-time" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" }
+  }
+}

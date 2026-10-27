@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/ci-result.schema.json",
+  "title": "CiResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflowId",
+    "repository",
+    "mrIid",
+    "commitSha",
+    "pipelineId",
+    "status"
+  ],
+  "properties": {
+    "workflowId": { "type": "string", "minLength": 1 },
+    "repository": { "type": "string", "minLength": 1 },
+    "mrIid": { "type": "integer", "minimum": 1 },
+    "commitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "pipelineId": { "type": "string", "minLength": 1 },
+    "buildId": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILURE", "ABORTED", "UNSTABLE"]
+    },
+    "gateFailures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate", "classification", "message"],
+        "properties": {
+          "gate": { "type": "string", "minLength": 1 },
+          "classification": {
+            "type": "string",
+            "enum": ["fixable", "non_fixable"]
+          },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "reportUri": { "type": "string", "format": "uri" },
+    "logUri": { "type": "string", "format": "uri" }
+  }
+}

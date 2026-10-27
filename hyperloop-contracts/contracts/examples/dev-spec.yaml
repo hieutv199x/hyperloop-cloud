@@ -1,0 +1,26 @@
+apiVersion: hyperloop.dev/v1
+kind: DevelopmentSpec
+metadata:
+  project: transaction-banking
+  userStory: PAY-1234
+  revision: 1
+spec:
+  status: submitted
+  requirements:
+    - 02-requirements/PAY-1234/US.md
+  analysis:
+    - 03-designs/PAY-1234/analysis.md
+  designs:
+    - 03-designs/PAY-1234/solution-design.md
+  acceptanceCriteria:
+    - 04-development/PAY-1234/acceptance-criteria.md
+  targets:
+    - repository: coc-ewallet-service
+      workingBranch: feature/PAY-1234
+      targetBranch: release/2.5.0
+    - repository: access-control-adapter
+      workingBranch: feature/PAY-1234
+      targetBranch: release/2.5.0
+  execution:
+    requireSpecApproval: true
+    maxAutoFixAttempts: 2

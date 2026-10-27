@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/dev-spec.schema.json",
+  "title": "DevelopmentSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "hyperloop.dev/v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "DevelopmentSpec"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "userStory", "revision"],
+      "properties": {
+        "project": { "type": "string", "minLength": 1 },
+        "userStory": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "requirements",
+        "designs",
+        "acceptanceCriteria",
+        "targets",
+        "execution"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["draft", "submitted", "approved"]
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "analysis": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "designs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repository", "workingBranch", "targetBranch"],
+            "properties": {
+              "repository": { "type": "string", "minLength": 1 },
+              "workingBranch": { "type": "string", "minLength": 1 },
+              "targetBranch": {
+                "type": "string",
+                "pattern": "^release/[0-9]+\\.[0-9]+\\.[0-9]+$"
+              }
+            }
+          }
+        },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requireSpecApproval", "maxAutoFixAttempts"],
+          "properties": {
+            "requireSpecApproval": { "type": "boolean" },
+            "maxAutoFixAttempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            }
+          }
+        }
+      }
+    }
+  }
+}

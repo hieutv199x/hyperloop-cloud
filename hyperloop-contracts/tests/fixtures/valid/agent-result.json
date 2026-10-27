@@ -1,0 +1,9 @@
+{
+  "jobId": "job-planner-1",
+  "stage": "planner",
+  "exitStatus": "SUCCEEDED",
+  "outputArtifactUris": [
+    "s3://hyperloop-artifacts/wf-PAY-1234-1/plan/implementation-spec.yaml"
+  ],
+  "message": "plan ready"
+}

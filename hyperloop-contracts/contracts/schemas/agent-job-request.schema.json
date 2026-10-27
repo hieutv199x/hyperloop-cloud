@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/agent-job-request.schema.json",
+  "title": "AgentJobRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "workflowId",
+    "stage",
+    "attempt",
+    "approvedSpecHash",
+    "inputArtifactUris",
+    "branchContract"
+  ],
+  "properties": {
+    "jobId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "minLength": 1 },
+    "stage": { "type": "string", "enum": ["planner", "coding", "fix"] },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "repository": { "type": "string" },
+    "approvedSpecHash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "inputArtifactUris": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "branchContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workingBranch", "targetBranch"],
+      "properties": {
+        "workingBranch": { "type": "string", "minLength": 1 },
+        "targetBranch": {
+          "type": "string",
+          "pattern": "^release/[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "failedCommitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "ciReportUri": { "type": "string", "format": "uri" }
+  }
+}

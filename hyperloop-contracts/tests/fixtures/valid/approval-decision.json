@@ -1,0 +1,12 @@
+{
+  "workflowId": "WF#PAY-1234#1",
+  "approvedSpecHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "approver": {
+    "entraId": "entra-user-1",
+    "displayName": "Alice Approver",
+    "email": "alice@example.com"
+  },
+  "decision": "APPROVED",
+  "expectedVersion": 2,
+  "comment": "Looks good"
+}

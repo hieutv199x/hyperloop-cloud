@@ -1,0 +1,14 @@
+{
+  "jobId": "job-planner-1",
+  "workflowId": "WF#PAY-1234#1",
+  "stage": "planner",
+  "attempt": 1,
+  "approvedSpecHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "inputArtifactUris": [
+    "s3://hyperloop-artifacts/wf-PAY-1234-1/sdd/dev-spec.yaml"
+  ],
+  "branchContract": {
+    "workingBranch": "feature/PAY-1234",
+    "targetBranch": "release/2.5.0"
+  }
+}

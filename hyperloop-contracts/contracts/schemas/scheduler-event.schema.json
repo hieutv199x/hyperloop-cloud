@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/scheduler-event.schema.json",
+  "title": "SchedulerEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventType", "taskId", "occurredAt"],
+  "properties": {
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "agent.job_ready.v1",
+        "agent.slot_released.v1",
+        "agent.dispatch_failed.v1"
+      ]
+    },
+    "taskId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string" },
+    "k8sJobName": { "type": "string" }
+  }
+}

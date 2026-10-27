@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/sdd-manifest.schema.json",
+  "title": "SDDPackage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "type": "string", "const": "hyperloop.dev/v1" },
+    "kind": { "type": "string", "const": "SDDPackage" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["devSpecId", "project"],
+      "properties": {
+        "devSpecId": { "type": "string", "minLength": 1 },
+        "project": { "type": "string", "minLength": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "devSpecPath",
+        "requirements",
+        "designs",
+        "acceptanceCriteria",
+        "services"
+      ],
+      "properties": {
+        "devSpecPath": { "type": "string", "minLength": 1 },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "analysis": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "designs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "services": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "repository",
+              "workingBranch",
+              "targetBranch",
+              "dependsOn"
+            ],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "repository": { "type": "string", "minLength": 1 },
+              "workingBranch": { "type": "string", "minLength": 1 },
+              "targetBranch": {
+                "type": "string",
+                "pattern": "^release/[0-9]+\\.[0-9]+\\.[0-9]+$"
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

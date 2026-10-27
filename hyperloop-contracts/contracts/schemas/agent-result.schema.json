@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/agent-result.schema.json",
+  "title": "AgentResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["jobId", "stage", "exitStatus", "outputArtifactUris"],
+  "properties": {
+    "jobId": { "type": "string", "minLength": 1 },
+    "stage": { "type": "string", "enum": ["planner", "coding", "fix"] },
+    "exitStatus": {
+      "type": "string",
+      "enum": ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED"]
+    },
+    "outputArtifactUris": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "commitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "mrIid": { "type": "integer", "minimum": 1 },
+    "branch": { "type": "string" },
+    "errorCode": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}

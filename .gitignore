@@ -1,0 +1,23 @@
+# Dependencies & build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Terraform / local state
+**/.terraform/
+**/terraform.tfstate*
+**/*.tfvars
+!**/terraform.tfvars.example

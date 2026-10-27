@@ -1,0 +1,12 @@
+namespace: hyperloop-agents
+backoffLimit: 0
+ttlSecondsAfterFinished: 600
+restartPolicy: Never
+activeDeadlineSeconds: 3600
+
+image:
+  repository: nexus.example/hyperloop/kiro-agent
+  digest: "" # pin by digest in prod
+  tag: "0.1.0"
+
+serviceAccountName: hyperloop-agent

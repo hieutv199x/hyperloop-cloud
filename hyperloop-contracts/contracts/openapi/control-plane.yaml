@@ -1,0 +1,64 @@
+openapi: 3.1.0
+info:
+  title: Hyperloop Control Plane API
+  version: 0.1.0
+  description: Scaffold OpenAPI for Hyperloop Control Plane (M1+)
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: OK
+  /webhooks/gitlab/sdd:
+    post:
+      summary: GitLab SDD DEV-Spec submission webhook
+      responses:
+        '202':
+          description: Accepted
+        '401':
+          description: Unauthorized
+  /webhooks/jenkins/ci:
+    post:
+      summary: Jenkins CI completion callback
+      responses:
+        '202':
+          description: Accepted
+  /webhooks/gitlab/mr:
+    post:
+      summary: GitLab merge request / merge event webhook
+      responses:
+        '202':
+          description: Accepted
+  /workflows/{id}:
+    get:
+      summary: Get workflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow detail
+  /workflows/{id}/approve-spec:
+    post:
+      summary: Approve or request changes on Implementation Spec
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Decision applied
+  /scheduler/capacity:
+    get:
+      summary: Read global admission capacity (admin)
+      responses:
+        '200':
+          description: Capacity snapshot

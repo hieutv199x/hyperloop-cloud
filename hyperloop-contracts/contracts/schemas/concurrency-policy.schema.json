@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperloop.dev/schemas/concurrency-policy.schema.json",
+  "title": "ConcurrencyPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["globalMaxConcurrentJobs", "priorities", "softTargets"],
+  "properties": {
+    "globalMaxConcurrentJobs": {
+      "type": "integer",
+      "const": 100
+    },
+    "pollIntervalSeconds": { "type": "integer", "minimum": 1 },
+    "reconciliationIntervalSeconds": { "type": "integer", "minimum": 1 },
+    "priorities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fix", "coding", "planner"],
+      "properties": {
+        "fix": { "type": "integer", "minimum": 0 },
+        "coding": { "type": "integer", "minimum": 0 },
+        "planner": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "softTargets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fix", "coding", "planner"],
+      "properties": {
+        "fix": { "type": "integer", "minimum": 0 },
+        "coding": { "type": "integer", "minimum": 0 },
+        "planner": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fairness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agingEnabled": { "type": "boolean" },
+        "perProjectLimit": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    }
+  }
+}

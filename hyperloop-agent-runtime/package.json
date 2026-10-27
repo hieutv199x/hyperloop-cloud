@@ -1,0 +1,29 @@
+{
+  "name": "@hyperloop/agent-runtime",
+  "version": "0.1.0",
+  "description": "Hyperloop Cloud agent runtime — Planner, Coding, and Fix Jobs with Kiro CLI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@hyperloop/contracts": "file:../hyperloop-contracts",
+    "@hyperloop/integrations": "file:../hyperloop-integrations",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

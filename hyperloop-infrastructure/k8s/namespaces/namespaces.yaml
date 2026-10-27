@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hyperloop-system
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    hyperloop.dev/workload: agents

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hyperloop-agent
+  namespace: hyperloop-agents
+---
+# Intentionally empty RoleBinding for Job-create / DynamoDB quota mutation.
+# Agents must not create Jobs or mutate global capacity.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hyperloop-agent-readonly-self
+  namespace: hyperloop-agents
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
