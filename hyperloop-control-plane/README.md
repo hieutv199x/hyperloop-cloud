@@ -56,7 +56,8 @@ npm run dev
 - [x] Planner scope cannot silently widen beyond SDD declarations
 - [x] Revision manager: duplicate ignore, supersede, unrelated no-replan, execution fence
 - [x] HITL binds `specHash` **and** pinned `sddCommitSha`
-- [x] Vertical slice still produces reviewable Implementation Spec artifacts
+- [x] Planner/coding results ingested from S3 manifests (`AgentResultIngestor`); CP does not run agents in-process (v1.3)
+- [x] Role images via `AGENT_IMAGE_PLANNER|CODING|FIX` + allowlist
 - [x] Integrations `GitLabSDDReader` + `DevSpecChangeDetector` (in-memory; live API later)
 - [x] Agent `SDDPackageLoader` / SDD-only planner context; coding push fencing hook
 - [ ] Real Kiro CLI headless flags pinned in Nexus image spike

@@ -45,7 +45,11 @@ describe('control-plane api M1', () => {
       repository,
       kubernetes: new FakeKubernetesAdapter(),
       agentNamespace: 'hyperloop-agents',
-      agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+      agentImages: {
+      planner: 'nexus.example/hyperloop/kiro-agent-planner:0.1.0',
+      coding: 'nexus.example/hyperloop/kiro-agent-coding:0.1.0',
+      fix: 'nexus.example/hyperloop/kiro-agent-fix:0.1.0',
+    },
       webhookSecret: 'test-secret',
     });
     const app = buildApp({ orchestrator, webhookSecret: 'test-secret' });
@@ -83,7 +87,11 @@ describe('control-plane api M1', () => {
       repository: new InMemoryWorkflowRepository(),
       kubernetes: new FakeKubernetesAdapter(),
       agentNamespace: 'hyperloop-agents',
-      agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+      agentImages: {
+      planner: 'nexus.example/hyperloop/kiro-agent-planner:0.1.0',
+      coding: 'nexus.example/hyperloop/kiro-agent-coding:0.1.0',
+      fix: 'nexus.example/hyperloop/kiro-agent-fix:0.1.0',
+    },
       webhookSecret: 'test-secret',
     });
     const app = buildApp({ orchestrator });

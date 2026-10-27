@@ -1,5 +1,10 @@
 import type { KubernetesJobPort } from '../adapters/kubernetes/types.js';
 import {
+  DEFAULT_AGENT_IMAGES,
+  type AgentImageSet,
+} from '../adapters/kubernetes/agent-images.js';
+import { buildAgentJobSpec } from '../adapters/kubernetes/job-builder.js';
+import {
   buildPlannerJobName,
   buildWorkflowId,
   ConditionalWriteError,
@@ -32,7 +37,10 @@ export interface OrchestratorDeps {
   repository: WorkflowRepository;
   kubernetes: KubernetesJobPort;
   agentNamespace: string;
-  agentImage: string;
+  /** @deprecated Use agentImages.planner */
+  agentImage?: string;
+  agentImages?: AgentImageSet;
+  agentImageAllowlist?: ReadonlySet<string>;
   webhookSecret?: string;
   approverPolicy?: ApproverPolicy;
   /** Called when a new plan hash invalidates prior approvals (HITL re-bind). */
@@ -160,23 +168,22 @@ export class WorkflowOrchestrator {
     });
     await this.deps.repository.updateConditional(workflow, 1);
 
-    await this.deps.kubernetes.createJob({
-      name: k8sJobName,
-      namespace: this.deps.agentNamespace,
-      image: this.deps.agentImage,
-      labels: {
-        'hyperloop.dev/workflow-id': workflowId,
-        'hyperloop.dev/stage': 'planner',
-      },
-      env: {
-        HYPERLOOP_WORKFLOW_ID: workflowId,
-        HYPERLOOP_JOB_ID: plannerJobId,
-        HYPERLOOP_STAGE: 'planner',
-        HYPERLOOP_SDD_COMMIT_SHA: input.sddCommitSha,
-      },
-      activeDeadlineSeconds: 1800,
-      ttlSecondsAfterFinished: 600,
-    });
+    const images = this.deps.agentImages ?? {
+      ...DEFAULT_AGENT_IMAGES,
+      ...(this.deps.agentImage ? { planner: this.deps.agentImage } : {}),
+    };
+    await this.deps.kubernetes.createJob(
+      buildAgentJobSpec({
+        name: k8sJobName,
+        namespace: this.deps.agentNamespace,
+        images,
+        imageAllowlist: this.deps.agentImageAllowlist,
+        workflowId,
+        jobId: plannerJobId,
+        stage: 'planner',
+        sddCommitSha: input.sddCommitSha,
+      }),
+    );
 
     return { outcome: 'created', workflow };
   }

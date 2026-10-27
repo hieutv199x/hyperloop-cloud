@@ -1,9 +1,176 @@
 # Hyperloop Cloud — Codex Engineering Handoff
 
-**Status:** v1.2 implementation blueprint — contracts/CP/agent/integrations SDD-only core in progress (M0–M4 + Section 15 gates)
-**Revision:** 2026-10-27 — v1.2: self-contained `*-sdd` planning context, SDD completeness and revision gates; retains M1.5 concurrency management
+**Status:** v1.3 authoritative engineering handoff / proposed contracts (not implemented)
+**Revision:** 2026-10-27 — v1.3: explicit deployable service boundaries, Docker image ownership, Kubernetes workload mapping, executable acceptance gates; retains v1.2 SDD-only planning and M1.5 concurrency
 **Target:** AWS EKS + DynamoDB + S3 + GitLab + existing Jenkins + private Nexus + Microsoft Teams
 **AI runtime:** Kiro CLI headless only. Codex is used to build the platform, not as a production runtime.
+
+
+## 0. READ FIRST — EXECUTION CONTRACT FOR CODEX (v1.3, OVERRIDES AMBIGUOUS OLDER SECTIONS)
+
+**Goal:** Build a platform that orchestrates ephemeral **Kiro CLI headless** jobs. **DO NOT implement a code generator in the Control Plane, Event Gateway, Scheduler, GitLab adapter, Jenkins adapter, or Teams Gateway.** The ONLY components permitted to invoke Kiro CLI or edit application source code are the ephemeral `planner`, `coding`, and `fix` **Agent Runner Jobs**, with permissions restricted by role. Codex is the engineering assistant creating the Hyperloop platform repositories, NOT the production AI runtime.
+
+### 0.1 Non-negotiable service-to-image-to-workload matrix
+
+| Logical service/process | Source repository | Docker image (illustrative private Nexus coordinates) | EKS resource | Runs Kiro CLI? | May modify target application source? | Always on? |
+|---|---|---|---|---|---|---|
+| **Event Gateway** | `hyperloop-integrations` | `nexus.company.local/hyperloop/event-gateway:<version>` | `Deployment`, 2 replicas | **NO** | **NO** | YES |
+| **Control Plane API + Workflow Engine** | `hyperloop-control-plane` | `nexus.company.local/hyperloop/control-plane:<version>` | `Deployment`, 2 replicas | **NO** | **NO** | YES |
+| **Scheduler / Reconciler** | `hyperloop-control-plane` (same codebase, distinct process/command) | `nexus.company.local/hyperloop/control-plane:<version>` | `Deployment`, 2 replicas (distributed-safe) | **NO** | **NO** | YES |
+| **Planner Agent Runner** | `hyperloop-agent-runtime` | `nexus.company.local/hyperloop/kiro-agent-planner:<version>` | `Job` per planning execution | **YES** | **NO** | NO |
+| **Coding Agent Runner** | `hyperloop-agent-runtime` | `nexus.company.local/hyperloop/kiro-agent-coding:<version>` | `Job` per approved service/repository execution | **YES** | **YES, only allowlisted repo/branch** | NO |
+| **Fix Agent Runner** | `hyperloop-agent-runtime` | `nexus.company.local/hyperloop/kiro-agent-fix:<version>` | `Job` per eligible failed CI execution | **YES** | **YES, only existing MR source branch** | NO |
+| **Teams Gateway** | `hyperloop-teams-gateway` | `nexus.company.local/hyperloop/teams-gateway:<version>` | `Deployment`, 2 replicas | **NO** | **NO** | YES |
+| **Contracts** | `hyperloop-contracts` | **NO runtime image** (schemas / packages only) | None | NO | NO | N/A |
+| **Infrastructure** | `hyperloop-infrastructure` | **NO application runtime image** (Terraform/Helm) | Installs resources | NO | NO | N/A |
+| **Jenkins CI** | Existing Jenkins; adapter/hooks in `hyperloop-integrations` | **Existing Jenkins agent images, NOT Hyperloop Kiro images** | Existing CI platform | NO | NO automatic Hyperloop code edits | Existing |
+
+**Image policy:** Exactly **one image per deployed process type** in the table. Planner/Coding/Fix can share a common base Dockerfile but publish **three distinct immutable role images** (with separate toolchains and security profiles). All images must be built in CI, vulnerability-scanned, signed if supported, pushed to **private Nexus**, deployed by **digest or immutable tag**, and never built dynamically inside the Control Plane. The `<version>` strings are placeholders, not real registry addresses. Never pull from ECR or public registries at runtime without explicit authorization.
+
+**Clarification:** A logical service is not always a separate repository. `control-plane-api` and `scheduler` are two separately deployed processes from the same repository and image, selected by `command`/`args`. `hyperloop-integrations` owns `event-gateway` and reusable GitLab/Jenkins adapter code. No separate `service-discovery` or `plan-consolidator` deployment: those are Control Plane modules. No persistent Planner/Coding/Fix Deployment, no KEDA ScaledJob creating jobs behind the Control Plane.
+
+### 0.2 Exact responsibilities and prohibited actions
+
+**Event Gateway — `hyperloop-integrations` / Deployment**
+- Exposes `POST /webhooks/gitlab/sdd`, `POST /webhooks/gitlab/mr`, `POST /webhooks/jenkins/ci` behind authenticated HTTPS ingress; verify GitLab token/HMAC as supported by the deployment and Jenkins callback authentication; enforce allowlists.
+- Normalize to versioned events; deduplicate delivery IDs; persist durable event/outbox or hand off to SQS with explicit failure handling; respond quickly; **never** clone repositories, analyze DEV-Spec, schedule Kubernetes Jobs, invoke Kiro, or decide whether CI should be fixed.
+- Emits `SDD_REVISION_SUBMITTED`, `CI_RESULT_RECEIVED`, `MR_MERGED`; stores raw delivery audit references as needed.
+
+**Control Plane API + Workflow Engine — `hyperloop-control-plane` / Deployment**
+- Consumes normalized events; reads pinned `*-sdd` revision, validates completeness and declared repository/branch mappings; stores workflow state in DynamoDB; validates Planner results and approved plan hash; manages HITL decisions and workflow transitions.
+- Creates durable **job intents** in DynamoDB and enqueues ready-work notifications. On CI callback, correlates repo/MR/commit SHA, applies retry policy (max 2 automatic fixes per service), and records decisions.
+- **Never** executes Kiro, writes source code, commits, creates MRs as an agent, or runs Jenkins quality checks. API handlers should not block while Jobs run.
+
+**Scheduler + Reconciler — `hyperloop-control-plane` / Deployment (separate command)**
+- Owns priority/fairness selection, DynamoDB atomic slot reservation, Kubernetes `batch/v1 Job` create/watch/reconcile, timeout/cancel handling, release-once, and reconciliation after crashes.
+- Max **100 reserved/admitted agent Jobs globally** across Planner/Coding/Fix, including `RESERVED`, `SCHEDULED`, `PENDING`, `RUNNING`. SQS signals ready work; DynamoDB is source of truth. Multiple replicas safe via conditional transactions; no in-memory counter as authority.
+- **Never** calls Kiro, clones application repos, writes code, performs Git commits, or creates MRs.
+
+**Planner Agent — `hyperloop-agent-runtime` / one-shot Job**
+- Input: immutable execution contract with `workflowId`, `executionId`, `sddRepository`, `sddCommitSha`, `devSpecPath`, artifact location, allowed scope.
+- Clones/checks out **only** pinned `*-sdd` commit; reads requirements, analysis, design, DEV-Spec and acceptance criteria from SDD; calls Kiro CLI headless to produce structured `implementation-plan.json` and service dependency DAG; uploads output to S3 and writes result manifest.
+- **Never** clones target application repos by default; never commits application code; never creates MRs; never creates Kubernetes Jobs; never calls Jira/Confluence/Graphify as required runtime dependencies. If SDD incomplete, report `NEEDS_SPEC_CLARIFICATION`.
+
+**Coding Agent — `hyperloop-agent-runtime` / one-shot Job**
+- Input: approved spec hash, pinned SDD SHA, ONE allowed target repo, working branch, target `release/x.y.z`, expected base SHA, approved plan artifact URI, execution lease/fencing token.
+- Clones pinned SDD context and specified target application repo; validates branch/protection policy and approval/lease; invokes Kiro CLI headless to implement ONLY the approved service scope; performs local checks; commits/pushes to **DEV-Spec-mentioned working branch**; idempotently creates/updates MR to **DEV-Spec-mentioned release branch**; uploads result manifest and exits.
+- **Never** approves its own spec, changes other repos, bypasses GitLab branch protection, merges MR, runs full Jenkins pipeline, or creates another Job.
+
+**Fix Agent — `hyperloop-agent-runtime` / one-shot Job**
+- Input: same approved scope and MR, expected failed commit SHA, Jenkins failure report artifact URI, attempt number (1 or 2), lease/fencing token.
+- Checks out **same MR source branch**; rejects stale HEAD; invokes Kiro CLI headless to fix bounded CI findings; commits/pushes a new SHA, does **not** create a second MR; writes result and exits. CI is triggered by GitLab push/MR pipeline as usual.
+- **Never** changes target release branch directly, exceeds auto-fix budget, alters other repos, or reuses a previous Pod/session as a prerequisite.
+
+**Teams Gateway — `hyperloop-teams-gateway` / Deployment**
+- Sends personal proactive Teams notifications and approval cards; validates Teams callback identity; forwards authorized approval/reject/cancel/retry commands to Control Plane.
+- **Never** owns workflow state, runs Kiro, creates Kubernetes Jobs, or edits source code.
+
+**Existing Jenkins CI**
+- Runs build/test/lint/SAST/quality gates after GitLab MR/push, using existing pipelines; posts authenticated results including repo, MR IID, pipeline/build ID and **tested commit SHA** to Event Gateway. Does not spawn Fix Jobs; Hyperloop Control Plane makes the decision.
+
+### 0.3 Docker build and runtime separation (REQUIRED)
+
+```text
+hyperloop-integrations/
+  services/event-gateway/Dockerfile       -> nexus.../hyperloop/event-gateway:<version>
+hyperloop-control-plane/
+  Dockerfile                              -> nexus.../hyperloop/control-plane:<version>
+  # entrypoint 'api' vs 'scheduler' -> two Deployments, same image
+hyperloop-agent-runtime/
+  docker/Dockerfile.base                  -> build stage, Kiro CLI + common runner
+  docker/Dockerfile.planner               -> nexus.../hyperloop/kiro-agent-planner:<version>
+  docker/Dockerfile.coding                -> nexus.../hyperloop/kiro-agent-coding:<version>
+  docker/Dockerfile.fix                   -> nexus.../hyperloop/kiro-agent-fix:<version>
+hyperloop-teams-gateway/
+  Dockerfile                              -> nexus.../hyperloop/teams-gateway:<version>
+hyperloop-contracts/                    -> NO runtime Dockerfile required
+hyperloop-infrastructure/               -> Terraform/Helm, NO runtime app Dockerfile
+```
+
+**Docker image build requirements:** pin supported Kiro CLI version and verify official install/headless invocation in a spike; never fabricate command-line flags. Use a non-root user, multi-stage builds, pinned dependencies, minimal OS packages, writable ephemeral workspace volume, explicit entrypoint, graceful SIGTERM handling, and version metadata. Java/Node/Python toolchains should be included only in role images needing them, or publish language-specific **coding/fix image variants** selected from approved SDD metadata; no runtime `docker build` inside Pods. Git credentials and Kiro authentication come from short-lived secrets/approved identity integration, never from Docker build ARGs, baked files, or logs. AWS access uses EKS Pod Identity/IRSA with least privilege. GitLab push authorization must be scoped per execution where possible.
+
+**Docker image ownership:** `hyperloop-agent-runtime` builds and publishes Planner/Coding/Fix images. `hyperloop-control-plane` **only references** an allowlisted image digest from deployment configuration in the Job manifest. It must never install Kiro CLI or execute `kiro` locally.
+
+### 0.4 Exact deployment topology and ownership
+
+```text
+EKS namespace hyperloop-system (long-running Deployments):
+  event-gateway       2 replicas  image: nexus.../event-gateway
+  control-plane-api   2 replicas  image: nexus.../control-plane command: api
+  control-plane-scheduler 2 replicas image: nexus.../control-plane command: scheduler
+  teams-gateway       2 replicas  image: nexus.../teams-gateway
+
+EKS namespace hyperloop-agents (ephemeral Jobs only):
+  planner-<execution-id>  image: nexus.../kiro-agent-planner
+  coding-<execution-id>   image: nexus.../kiro-agent-coding
+  fix-<execution-id>      image: nexus.../kiro-agent-fix
+
+AWS managed / external (NOT deployed as Kiro Pods):
+  SQS: devspec-events, planner-ready, coding-ready, fix-ready (+ DLQs)
+  DynamoDB: workflow state, idempotency, job intents, reservations, checkpoint metadata
+  S3: immutable SDD/plan artifacts, agent results, reports, logs/checkpoint blobs
+  Karpenter: dedicated agent node pool scales with Job Pod demand
+  GitLab: *-sdd + application repos + MR
+  Jenkins: existing quality CI
+  Private Nexus: container registry for all Hyperloop images
+```
+
+**Scheduling note:** A ready-work event is not permission to create a Pod. Scheduler must first atomically reserve capacity in DynamoDB. If full, leave durable job intent `QUEUED` (no Pod) and retry on slot release/reconciliation. Kubernetes Job completion releases capacity exactly once; TTL cleanup removes completed Job/Pod. SQS messages are not held invisible while waiting hours for a slot.
+
+### 0.5 End-to-end owner-by-step handoff
+
+| Step | Trigger/input | Owner that executes it | Output / next step |
+|---|---|---|---|
+| 1 | Push DEV-Spec to `*-sdd` | **GitLab** -> **Event Gateway** | Validated SDD event to SQS |
+| 2 | SDD event | **Control Plane API/Engine** | Workflow + pinned SDD SHA + completeness gate + durable Planner intent |
+| 3 | Planner intent ready and slot available | **Scheduler** | Create Planner Kubernetes Job with Planner image |
+| 4 | Planner Pod running | **Planner Agent Runner + Kiro CLI** | Implementation plan + service DAG to S3; result manifest |
+| 5 | Planner result | **Control Plane** | Validate plan scope/DAG, checkpoint in DynamoDB, request HITL |
+| 6 | Human approves exact plan hash | **Teams Gateway** forwards to **Control Plane** | Conditional approval recorded |
+| 7 | Approved plan + DAG ready | **Control Plane** -> **Scheduler** | One Coding intent/Job per eligible repo, respecting DAG and max 100 slots |
+| 8 | Coding Pod running | **Coding Agent Runner + Kiro CLI** | Commit/push working branch; create/update MR to release/x.y.z; result |
+| 9 | Coding Job terminal | **Scheduler/Reconciler** | Release slot; Job/Pod TTL cleanup; no waiting for CI inside Pod |
+| 10 | GitLab push/MR | **Existing Jenkins CI** | Quality results to Event Gateway |
+| 11 | CI callback | **Event Gateway** -> **Control Plane** | Correlate exact SHA/MR; pass -> review, fail -> fix eligibility |
+| 12 | Fix eligible, attempt < 2 | **Control Plane** -> **Scheduler** | Create new Fix Job, not restart Coding Pod |
+| 13 | Fix Pod running | **Fix Agent Runner + Kiro CLI** | Fix commit on SAME MR source branch; terminate; Jenkins reruns |
+| 14 | CI passed | **Control Plane** | READY_FOR_REVIEW; Teams notify; GitLab human review/merge |
+| 15 | GitLab merged event | **Event Gateway** -> **Control Plane** | Mark service merged; workflow COMPLETED only when all required MRs merged |
+
+### 0.6 Interfaces that MUST be coded (no mock-only final implementation)
+
+- `EventGateway`: webhook routes, authentication, normalization, SQS publish, idempotency and delivery failure handling.
+- `WorkflowService`: state transitions, revision fencing, completeness validation, plan consolidation, approval, CI decisioning, final merge aggregation.
+- `ReadyJobRepository`: DynamoDB durable `QUEUED` intents, retry/backoff, priority and DAG readiness.
+- `ConcurrencySemaphore`: DynamoDB `TransactWriteItems` reserve/release-once; no oversubscription with 3 schedulers.
+- `KubernetesJobAdapter`: idempotent Job create/watch/reconcile, unique deterministic Job names/labels, image digest allowlist, security policy.
+- `AgentExecutionContract`: immutable SDD SHA, role, target repo/branches, approved spec hash, artifact locations, expected source SHA, lease/fence token.
+- `AgentRunner`: role-specific contract validation, workspace setup, actual Kiro CLI invocation, result artifacts, exit codes, SIGTERM handling.
+- `GitLabAdapter`: scoped clone/checkout, protected branch validation, idempotent MR creation, push and SHA reconciliation.
+- `JenkinsCallbackAdapter`: authenticate, parse gate failures, correlate tested commit SHA and pipeline ID; stale results are no-ops.
+- `TeamsApprovalAdapter`: identity authorization, exact hash approval, audit trail, notifications.
+- `Reconciler`: recover from Kubernetes create timeouts, lost callbacks, stale reservations, dead Pods, SQS duplicates, revision supersession.
+
+### 0.7 Acceptance criteria that enforce the architecture
+
+1. Source scan: `hyperloop-control-plane` and `hyperloop-integrations` have **zero Kiro CLI imports/process calls**; only `hyperloop-agent-runtime` invokes Kiro CLI.
+2. Build pipeline publishes **six application image artifacts**: event-gateway, control-plane, kiro-agent-planner, kiro-agent-coding, kiro-agent-fix, teams-gateway; no runtime image for contracts/infrastructure. (Six is the number of distinct image names; scheduler reuses control-plane image.)
+3. EKS deploy shows four long-running Deployments, and **zero idle Kiro Pods** before events; no permanent Planner/Coding/Fix Deployment.
+4. Submitting SDD creates a Planner Job **only**, never a Coding Job before spec approval.
+5. Planner image can read pinned SDD and write S3 plan, but cannot push application source or create MR; negative permission test passes.
+6. Coding Job starts only with matching approved spec hash and scoped repo/branch; creates exactly one MR per service and targets specified `release/x.y.z`.
+7. Coding Job exits after push/MR; Jenkins is independent and can take hours without retaining the Coding Pod.
+8. Failed Jenkins callback for current SHA schedules a **new** Fix Job (max 2); stale/duplicate callbacks schedule zero extra Jobs.
+9. Under 150 ready intents and 3 scheduler replicas, max 100 outstanding reservations including Pending Jobs; remaining 50 remain QUEUED.
+10. On Pod/node/controller failure, reconciliation eventually resolves job/slot state without duplicate MR or lost workflow.
+11. A new SDD revision invalidates stale approval and fences outdated job commits; unapproved scope changes cannot be applied.
+12. No runtime Jira/Confluence/Graphify/service catalog dependency in Planner. Missing SDD inputs lead to `NEEDS_SPEC_CLARIFICATION`.
+
+### 0.8 Explicit Codex instructions (paste verbatim)
+
+> Treat Section 0 of `HYPERLOOP_CODEX_HANDOFF.md` as the highest-priority implementation contract. Do not build a code generator in Control Plane. Build four always-on EKS Deployments (Event Gateway, Control Plane API, Control Plane Scheduler, Teams Gateway) and three ephemeral Kubernetes Job roles (Planner, Coding, Fix). Only the Agent Runtime images contain and invoke Kiro CLI headless. Use one Control Plane image with two process entrypoints, and three role-specific Kiro Agent images built from a common base. All images are pushed to private Nexus. SDD is the only required planning input; Coding/Fix additionally clone approved target repositories. Enforce approval hash, scoped Git branches, global 100-slot DynamoDB semaphore, CI SHA correlation, two fix attempts, and durable recovery. Implement in milestones, include tests, and do not silently substitute mocks for production adapters. Report missing Kiro CLI flags/authentication as a spike/blocker instead of inventing them.
+
+---
 
 ## 1. Immutable product decisions
 

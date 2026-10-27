@@ -56,7 +56,8 @@ export function buildApp(options: AppOptions = {}) {
       repository: new InMemoryWorkflowRepository(),
       kubernetes,
       agentNamespace: config.AGENT_NAMESPACE,
-      agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+      agentImages: config.agentImages,
+      agentImageAllowlist: config.agentImageAllowlist,
       webhookSecret: options.webhookSecret ?? process.env.GITLAB_SDD_WEBHOOK_SECRET,
       approverPolicy: ApproverPolicy.fromAllowlist(allowlist),
       onApprovalsInvalidated: (workflowId) => {

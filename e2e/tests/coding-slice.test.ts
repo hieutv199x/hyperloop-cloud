@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { InMemoryGitLabClient } from '@hyperloop/integrations';
-import { InMemoryWorkflowRepository } from '../adapters/dynamodb/in-memory-workflow-repository.js';
-import { FakeKubernetesAdapter } from '../adapters/kubernetes/fake-kubernetes.js';
-import { InMemoryArtifactStore } from '../adapters/s3/artifact-store.js';
-import { DEFAULT_SCHEDULER_CONFIG } from '../scheduler/config.js';
-import { JobQueueScheduler } from '../scheduler/job-queue-scheduler.js';
-import { ApproverPolicy } from '../security/approver-policy.js';
-import { ApprovalService } from './approval-service.js';
-import { CodingVerticalSlice } from './coding-vertical-slice.js';
-import { WorkflowOrchestrator } from './workflow-orchestrator.js';
+import { InMemoryWorkflowRepository } from '../../hyperloop-control-plane/src/adapters/dynamodb/in-memory-workflow-repository.js';
+import { FakeKubernetesAdapter } from '../../hyperloop-control-plane/src/adapters/kubernetes/fake-kubernetes.js';
+import { InMemoryArtifactStore } from '../../hyperloop-control-plane/src/adapters/s3/artifact-store.js';
+import { AgentResultIngestor } from '../../hyperloop-control-plane/src/application/agent-result-ingestor.js';
+import { ApprovalService } from '../../hyperloop-control-plane/src/application/approval-service.js';
+import { WorkflowOrchestrator } from '../../hyperloop-control-plane/src/application/workflow-orchestrator.js';
+import { DEFAULT_SCHEDULER_CONFIG } from '../../hyperloop-control-plane/src/scheduler/config.js';
+import { JobQueueScheduler } from '../../hyperloop-control-plane/src/scheduler/job-queue-scheduler.js';
+import { ApproverPolicy } from '../../hyperloop-control-plane/src/security/approver-policy.js';
+import { simulateCodingJob } from '../src/agent-job-simulator.js';
 
 const SPEC =
   'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-describe('M4 coding vertical slice', () => {
-  it('approved plan → coding job → MR to release → AWAITING_CI; unlocks dependent', async () => {
+describe('e2e M4 coding (agent outside Control Plane)', () => {
+  it('approved plan → coding Job → ingest → AWAITING_CI; unlocks dependent', async () => {
     const repository = new InMemoryWorkflowRepository();
     const kubernetes = new FakeKubernetesAdapter();
     const artifacts = new InMemoryArtifactStore();
@@ -23,11 +24,12 @@ describe('M4 coding vertical slice', () => {
       repository,
       kubernetes,
       agentNamespace: 'hyperloop-agents',
-      agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+      agentImages: DEFAULT_SCHEDULER_CONFIG.kubernetes.images,
       approverPolicy: ApproverPolicy.allowAllForDev(),
       onApprovalsInvalidated: (id) => scheduler.store.clearSpecApproval(id),
     });
     const approvals = new ApprovalService(orchestrator, scheduler);
+    const ingestor = new AgentResultIngestor(orchestrator, artifacts);
     const gitlab = new InMemoryGitLabClient(
       new Set(['coc-ewallet-service', 'access-control-adapter']),
       [
@@ -103,36 +105,68 @@ describe('M4 coding vertical slice', () => {
       approver: { entraId: 'entra-alice', displayName: 'Alice' },
     });
 
-    expect(approved.codingTasksEnqueued).toEqual([
-      'WF#PAY-4000#1:coding:coc-ewallet-service:1',
-    ]);
+    const codingTaskId = approved.codingTasksEnqueued[0]!;
+    expect(codingTaskId).toBe('WF#PAY-4000#1:coding:coc-ewallet-service:1');
 
-    const slice = new CodingVerticalSlice({
-      orchestrator,
-      approvals,
-      scheduler,
-      kubernetes,
-      artifacts,
+    await scheduler.dispatchOnce();
+    await scheduler.reconciler.reconcileReserved();
+
+    let task = scheduler.store.getTask(codingTaskId);
+    if (!task?.k8sJobName) {
+      const reservation = await scheduler.reservations.reserveWithBackoff(codingTaskId);
+      expect(reservation).toBeTruthy();
+      task = scheduler.store.getTask(codingTaskId)!;
+      await scheduler.dispatcher.dispatch(task, reservation!);
+      await scheduler.store.markScheduled(codingTaskId);
+      task = scheduler.store.getTask(codingTaskId)!;
+    }
+
+    const service = (await orchestrator.getWorkflow('WF#PAY-4000#1'))!.services[
+      'coc-ewallet-service'
+    ]!;
+
+    const resultUri = await simulateCodingJob({
+      jobId: codingTaskId,
+      workflowId: 'WF#PAY-4000#1',
+      repository: service.repository,
+      workingBranch: service.workingBranch,
+      targetBranch: service.targetBranch,
+      approvedSpecHash: SPEC,
       artifactsBucket: 'hyperloop-artifacts',
-      agentNamespace: 'hyperloop-agents',
-      agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+      artifacts,
+      kubernetes,
+      namespace: 'hyperloop-agents',
+      k8sJobName: task.k8sJobName!,
       gitlab,
     });
 
-    const coded = await slice.runTask(approved.codingTasksEnqueued[0]!);
-    expect(coded.mrIid).toBe(1);
-    expect(coded.commitSha).toMatch(/^[a-f0-9]{40}$/);
+    await scheduler.finalizeFromKubernetes(codingTaskId);
+    const coded = await ingestor.ingestCoding({
+      workflowId: 'WF#PAY-4000#1',
+      repository: 'coc-ewallet-service',
+      jobId: codingTaskId,
+      resultUri,
+    });
+
+    for (const repo of coded.newlyUnlocked) {
+      await scheduler.enqueue({
+        taskId: `WF#PAY-4000#1:coding:${repo}:1`,
+        workflowId: 'WF#PAY-4000#1',
+        stage: 'coding',
+        repository: repo,
+        project: 'transaction-banking',
+        approvedSpecHash: SPEC,
+        attempt: 1,
+      });
+    }
+
     expect(coded.workflow.services['coc-ewallet-service']?.state).toBe('AWAITING_CI');
     expect(coded.workflow.services['coc-ewallet-service']?.mrIid).toBe(1);
     expect(coded.newlyUnlocked).toEqual(['access-control-adapter']);
     expect(gitlab.mergeRequests[0]?.targetBranch).toBe('release/2.5.0');
-
-    const dependentTask = scheduler.store.getTask(
-      'WF#PAY-4000#1:coding:access-control-adapter:1',
+    expect(scheduler.store.getTask('WF#PAY-4000#1:coding:access-control-adapter:1')?.status).toBe(
+      'QUEUED',
     );
-    expect(dependentTask?.status).toBe('QUEUED');
-
-    // Pod/Job terminated (slot released)
     expect(scheduler.store.capacity.getState().used).toBe(0);
   });
 });

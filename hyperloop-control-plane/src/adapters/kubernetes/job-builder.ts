@@ -1,12 +1,20 @@
+import {
+  resolveAgentImage,
+  type AgentImageSet,
+  type AgentRole,
+} from './agent-images.js';
 import type { DesiredJobSpec } from './types.js';
 
 export interface AgentJobBuildInput {
   name: string;
   namespace: string;
-  image: string;
+  /** Explicit image; otherwise resolved from images[stage]. */
+  image?: string;
+  images?: AgentImageSet;
+  imageAllowlist?: ReadonlySet<string>;
   workflowId: string;
   jobId: string;
-  stage: 'planner' | 'coding' | 'fix';
+  stage: AgentRole;
   attempt?: number;
   sddCommitSha?: string;
   extraEnv?: Record<string, string>;
@@ -15,10 +23,25 @@ export interface AgentJobBuildInput {
 }
 
 export function buildAgentJobSpec(input: AgentJobBuildInput): DesiredJobSpec {
+  const image =
+    input.image ??
+    resolveAgentImage(
+      input.stage,
+      input.images ?? {
+        planner: '',
+        coding: '',
+        fix: '',
+      },
+      input.imageAllowlist,
+    );
+  if (!image) {
+    throw new Error(`Agent image required for stage ${input.stage}`);
+  }
+
   return {
     name: input.name,
     namespace: input.namespace,
-    image: input.image,
+    image,
     labels: {
       'app.kubernetes.io/part-of': 'hyperloop',
       'hyperloop.dev/workflow-id': input.workflowId,

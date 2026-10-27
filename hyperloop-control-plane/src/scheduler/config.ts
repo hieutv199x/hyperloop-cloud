@@ -14,7 +14,14 @@ export interface SchedulerConfig {
   queues: Record<AgentStage, string>;
   kubernetes: {
     namespace: string;
-    image: string;
+    /** @deprecated Prefer images.planner|coding|fix (v1.3 role images). */
+    image?: string;
+    images: {
+      planner: string;
+      coding: string;
+      fix: string;
+    };
+    imageAllowlist?: string[];
     backoffLimit: number;
     ttlSecondsAfterFinished: number;
     activeDeadlineSeconds: number;
@@ -47,7 +54,12 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   },
   kubernetes: {
     namespace: 'hyperloop-agents',
-    image: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+    images: {
+      planner: 'nexus.example/hyperloop/kiro-agent-planner:0.1.0',
+      coding: 'nexus.example/hyperloop/kiro-agent-coding:0.1.0',
+      fix: 'nexus.example/hyperloop/kiro-agent-fix:0.1.0',
+    },
+    imageAllowlist: ['*'],
     backoffLimit: 0,
     ttlSecondsAfterFinished: 600,
     activeDeadlineSeconds: 3600,

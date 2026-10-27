@@ -38,7 +38,11 @@ function createOrchestrator(secret?: string) {
     repository,
     kubernetes,
     agentNamespace: 'hyperloop-agents',
-    agentImage: 'nexus.example/hyperloop/kiro-agent:0.1.0',
+    agentImages: {
+      planner: 'nexus.example/hyperloop/kiro-agent-planner:0.1.0',
+      coding: 'nexus.example/hyperloop/kiro-agent-coding:0.1.0',
+      fix: 'nexus.example/hyperloop/kiro-agent-fix:0.1.0',
+    },
     webhookSecret: secret,
   });
   return { orchestrator, repository, kubernetes };

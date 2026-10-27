@@ -1,0 +1,167 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hyperloop-contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: hyperloop-contracts/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  integrations:
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hyperloop-contracts/package-lock.json
+            hyperloop-integrations/package-lock.json
+      - run: npm ci
+        working-directory: hyperloop-contracts
+      - run: npm run build
+        working-directory: hyperloop-contracts
+      - run: npm ci
+        working-directory: hyperloop-integrations
+      - run: npm run lint
+        working-directory: hyperloop-integrations
+      - run: npm test
+        working-directory: hyperloop-integrations
+      - run: npm run build
+        working-directory: hyperloop-integrations
+
+  agent-runtime:
+    needs: [contracts, integrations]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hyperloop-contracts/package-lock.json
+            hyperloop-integrations/package-lock.json
+            hyperloop-agent-runtime/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: hyperloop-contracts
+      - run: npm ci && npm run build
+        working-directory: hyperloop-integrations
+      - run: npm ci
+        working-directory: hyperloop-agent-runtime
+      - run: npm run lint
+        working-directory: hyperloop-agent-runtime
+      - run: npm test
+        working-directory: hyperloop-agent-runtime
+      - run: npm run build
+        working-directory: hyperloop-agent-runtime
+
+  control-plane:
+    needs: [contracts, integrations, agent-runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hyperloop-contracts/package-lock.json
+            hyperloop-integrations/package-lock.json
+            hyperloop-agent-runtime/package-lock.json
+            hyperloop-control-plane/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: hyperloop-contracts
+      - run: npm ci && npm run build
+        working-directory: hyperloop-integrations
+      - run: npm ci && npm run build
+        working-directory: hyperloop-agent-runtime
+      - run: npm ci
+        working-directory: hyperloop-control-plane
+      - run: npm run lint
+        working-directory: hyperloop-control-plane
+      - run: npm test
+        working-directory: hyperloop-control-plane
+      - name: Architecture gate — no Kiro in control-plane source
+        run: |
+          set +e
+          hits=$(grep -REn 'agent-runtime|invokeKiro|\bkiro\b' hyperloop-control-plane/src \
+            --exclude-dir=node_modules 2>/dev/null \
+            | grep -Ev 'AGENT_IMAGE_|kiro-agent-|nexus\.example/hyperloop/kiro' || true)
+          set -e
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo 'Forbidden Kiro/agent-runtime reference in control-plane/src'
+            exit 1
+          fi
+
+  e2e:
+    needs: [contracts, integrations, agent-runtime, control-plane]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hyperloop-contracts/package-lock.json
+            hyperloop-integrations/package-lock.json
+            hyperloop-agent-runtime/package-lock.json
+            hyperloop-control-plane/package-lock.json
+            e2e/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: hyperloop-contracts
+      - run: npm ci && npm run build
+        working-directory: hyperloop-integrations
+      - run: npm ci && npm run build
+        working-directory: hyperloop-agent-runtime
+      - run: npm ci && npm run build
+        working-directory: hyperloop-control-plane
+      - run: npm ci
+        working-directory: e2e
+      - run: npm test
+        working-directory: e2e
+
+  teams-gateway:
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hyperloop-contracts/package-lock.json
+            hyperloop-teams-gateway/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: hyperloop-contracts
+      - run: npm ci
+        working-directory: hyperloop-teams-gateway
+      - run: npm run lint
+        working-directory: hyperloop-teams-gateway
+      - run: npm test
+        working-directory: hyperloop-teams-gateway
