@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.7
+# Build from monorepo root after base:
+#   docker build -f hyperloop-agent-runtime/docker/Dockerfile.planner \
+#     --build-arg BASE_IMAGE=hyperloop/kiro-agent-base:local \
+#     -t hyperloop/kiro-agent-planner:local .
+ARG BASE_IMAGE=hyperloop/kiro-agent-base:local
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+FROM ${BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="hyperloop-kiro-agent-planner" \
+      org.opencontainers.image.description="Hyperloop Planner Job — SDD-only, no app source push" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
+
+# Planner: no language toolchains, no GitLab push credentials baked in.
+ENV HYPERLOOP_IMAGE_ROLE=planner \
+    HYPERLOOP_ROLE=planner

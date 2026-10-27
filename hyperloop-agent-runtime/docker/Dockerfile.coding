@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.7
+ARG BASE_IMAGE=hyperloop/kiro-agent-base:local
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+FROM ${BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="hyperloop-kiro-agent-coding" \
+      org.opencontainers.image.description="Hyperloop Coding Job — scoped repo/branch mutation" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
+
+# Optional language variants (coding-node, coding-java) land later via SDD metadata.
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssh-client \
+  && rm -rf /var/lib/apt/lists/* \
+  && chown -R node:node /workspace
+USER node
+
+ENV HYPERLOOP_IMAGE_ROLE=coding \
+    HYPERLOOP_ROLE=coding

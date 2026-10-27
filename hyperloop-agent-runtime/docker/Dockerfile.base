@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+# Build from monorepo root:
+#   docker build -f hyperloop-agent-runtime/docker/Dockerfile.base \
+#     --build-arg KIRO_CLI_VERSION=unpinned \
+#     -t hyperloop/kiro-agent-base:local .
+ARG NODE_VERSION=22.14.0-bookworm-slim
+FROM node:${NODE_VERSION} AS build
+
+WORKDIR /src
+COPY hyperloop-contracts ./hyperloop-contracts
+COPY hyperloop-integrations ./hyperloop-integrations
+COPY hyperloop-agent-runtime ./hyperloop-agent-runtime
+
+WORKDIR /src/hyperloop-contracts
+RUN npm ci && npm run build
+
+WORKDIR /src/hyperloop-integrations
+RUN npm ci && npm run build
+
+WORKDIR /src/hyperloop-agent-runtime
+RUN npm ci && npm run build && npm prune --omit=dev
+
+FROM node:${NODE_VERSION} AS base
+ARG KIRO_CLI_VERSION
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+
+LABEL org.opencontainers.image.title="hyperloop-kiro-agent-base" \
+      org.opencontainers.image.description="Hyperloop Kiro agent common base" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.source="https://github.com/hieutv199x/hyperloop-cloud"
+
+RUN test -n "${KIRO_CLI_VERSION}" || (echo "KIRO_CLI_VERSION is required" && exit 1)
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates tini \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=build /src/hyperloop-agent-runtime/package.json ./
+COPY --from=build /src/hyperloop-agent-runtime/node_modules ./node_modules
+COPY --from=build /src/hyperloop-agent-runtime/dist ./dist
+COPY --from=build /src/hyperloop-contracts /src/hyperloop-contracts
+COPY --from=build /src/hyperloop-integrations /src/hyperloop-integrations
+COPY hyperloop-agent-runtime/entrypoint/run-agent.sh /entrypoint/run-agent.sh
+COPY hyperloop-agent-runtime/docker/install-kiro.sh /tmp/install-kiro.sh
+RUN chmod +x /entrypoint/run-agent.sh /tmp/install-kiro.sh \
+  && /tmp/install-kiro.sh "${KIRO_CLI_VERSION}" \
+  && rm /tmp/install-kiro.sh \
+  && mkdir -p /hyperloop /workspace \
+  && chown -R node:node /app /hyperloop /workspace /opt/hyperloop
+
+ENV NODE_ENV=production \
+    HYPERLOOP_CONTRACT_PATH=/hyperloop/contract.json \
+    HOME=/home/node
+
+USER node
+WORKDIR /workspace
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint/run-agent.sh"]

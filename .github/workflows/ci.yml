@@ -165,3 +165,51 @@ jobs:
         working-directory: hyperloop-teams-gateway
       - run: npm test
         working-directory: hyperloop-teams-gateway
+
+  images:
+    needs: [contracts, integrations, agent-runtime, control-plane, teams-gateway]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build six application images
+        env:
+          KIRO_CLI_VERSION: unpinned
+          TAG_SUFFIX: ci-${{ github.sha }}
+          VERSION: 0.1.0
+          REVISION: ${{ github.sha }}
+        run: ./scripts/build-images.sh
+      - name: Control Plane must not contain kiro
+        run: |
+          docker run --rm --entrypoint sh "hyperloop/control-plane:ci-${{ github.sha }}" -c '! command -v kiro'
+          docker run --rm --entrypoint sh "hyperloop/event-gateway:ci-${{ github.sha }}" -c '! command -v kiro'
+          docker run --rm --entrypoint sh "hyperloop/teams-gateway:ci-${{ github.sha }}" -c '! command -v kiro'
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: hyperloop/control-plane:ci-${{ github.sha }}
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: Push to Nexus (optional)
+        # Enable by setting repository secrets NEXUS_REGISTRY / NEXUS_USERNAME / NEXUS_PASSWORD.
+        # Absent secrets → step skipped (no invented registry coordinates).
+        if: ${{ secrets.NEXUS_PASSWORD != '' }}
+        env:
+          NEXUS_REGISTRY: ${{ secrets.NEXUS_REGISTRY }}
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+          TAG: ci-${{ github.sha }}
+        run: |
+          if [ -z "${NEXUS_REGISTRY}" ] || [ -z "${NEXUS_USERNAME}" ]; then
+            echo "NEXUS_PASSWORD set but NEXUS_REGISTRY/USERNAME missing" >&2
+            exit 1
+          fi
+          echo "$NEXUS_PASSWORD" | docker login "$NEXUS_REGISTRY" -u "$NEXUS_USERNAME" --password-stdin
+          for name in event-gateway control-plane teams-gateway kiro-agent-planner kiro-agent-coding kiro-agent-fix; do
+            docker tag "hyperloop/${name}:${TAG}" "${NEXUS_REGISTRY}/hyperloop/${name}:${TAG}"
+            docker push "${NEXUS_REGISTRY}/hyperloop/${name}:${TAG}"
+            echo "${name}:${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          done

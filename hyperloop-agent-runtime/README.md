@@ -11,6 +11,23 @@ npm test
 npm run build
 ```
 
+## Images (v1.3)
+
+Role images are built from the **monorepo root**:
+
+```bash
+KIRO_CLI_VERSION=unpinned ./scripts/build-images.sh
+```
+
+| Image | Dockerfile |
+|---|---|
+| `kiro-agent-base` | `docker/Dockerfile.base` |
+| `kiro-agent-planner` | `docker/Dockerfile.planner` |
+| `kiro-agent-coding` | `docker/Dockerfile.coding` |
+| `kiro-agent-fix` | `docker/Dockerfile.fix` |
+
+`KIRO_CLI_VERSION` is required. Use `unpinned` until the [Kiro headless spike](../docs/spikes/kiro-cli-headless.md) completes — do not invent install flags.
+
 ## Roles
 
 | Stage | Milestone | Responsibility |
