@@ -7,12 +7,15 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
     "@hyperloop/agent-runtime": "file:../hyperloop-agent-runtime",
     "@hyperloop/contracts": "file:../hyperloop-contracts",
     "@hyperloop/integrations": "file:../hyperloop-integrations"

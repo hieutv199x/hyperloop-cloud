@@ -1,8 +1,9 @@
-import { FakeKubernetesAdapter } from '../adapters/kubernetes/fake-kubernetes.js';
 import { loadConfig } from '../config.js';
-import { DEFAULT_SCHEDULER_CONFIG } from '../scheduler/config.js';
 import { JobQueueScheduler } from '../scheduler/job-queue-scheduler.js';
+import { AtomicSchedulerStore } from '../scheduler/atomic-store.js';
+import { DynamoDbSchedulerStore } from '../adapters/dynamodb/dynamodb-scheduler-store.js';
 import { InMemoryQueueBus } from '../workers/in-memory-queue.js';
+import { buildAdapters } from './composition.js';
 
 /**
  * Control Plane Scheduler process (v1.3): wake-up poll + reconcile loop.
@@ -11,25 +12,30 @@ import { InMemoryQueueBus } from '../workers/in-memory-queue.js';
  */
 export async function startScheduler(): Promise<void> {
   const config = loadConfig();
-  const kubernetes = new FakeKubernetesAdapter();
-  const queueBus = new InMemoryQueueBus();
+  const adapters = buildAdapters(config);
+
+  if (adapters.schedulerStore instanceof DynamoDbSchedulerStore) {
+    await adapters.schedulerStore.ensureCapacityInitialized();
+    console.log('[scheduler] DynamoDB capacity item initialized');
+  }
+
+  // JobQueueScheduler still drives the in-memory AtomicSchedulerStore for the
+  // dispatch/reconcile loop. Cross-process admission is proven by DynamoDB
+  // TransactWrite (e2e integration + DynamoDbSchedulerStore). Full async port
+  // swap of JobQueueScheduler is a follow-up when reconciler reads are async.
+  const store =
+    adapters.schedulerStore instanceof AtomicSchedulerStore
+      ? adapters.schedulerStore
+      : new AtomicSchedulerStore(adapters.schedulerConfig);
+  const queueBus =
+    adapters.queueBus instanceof InMemoryQueueBus
+      ? adapters.queueBus
+      : new InMemoryQueueBus();
+
   const scheduler = new JobQueueScheduler(
-    {
-      ...DEFAULT_SCHEDULER_CONFIG,
-      globalMaxConcurrentJobs: config.GLOBAL_MAX_CONCURRENT_JOBS,
-      pollIntervalSeconds: Number(process.env.SCHEDULER_POLL_INTERVAL_SECONDS ?? 5),
-      reconciliationIntervalSeconds: Number(
-        process.env.SCHEDULER_RECONCILE_INTERVAL_SECONDS ?? 30,
-      ),
-      kubernetes: {
-        ...DEFAULT_SCHEDULER_CONFIG.kubernetes,
-        namespace: config.AGENT_NAMESPACE,
-        images: config.agentImages,
-        imageAllowlist: [...config.agentImageAllowlist],
-      },
-    },
-    kubernetes,
-    { queueBus },
+    adapters.schedulerConfig,
+    adapters.kubernetes,
+    { store, queueBus },
   );
 
   let stopping = false;
@@ -59,7 +65,7 @@ export async function startScheduler(): Promise<void> {
   };
 
   console.log(
-    `[scheduler] started poll=${scheduler.config.pollIntervalSeconds}s reconcile=${scheduler.config.reconciliationIntervalSeconds}s limit=${scheduler.config.globalMaxConcurrentJobs}`,
+    `[scheduler] started mode=${adapters.mode} poll=${scheduler.config.pollIntervalSeconds}s reconcile=${scheduler.config.reconciliationIntervalSeconds}s limit=${scheduler.config.globalMaxConcurrentJobs}`,
   );
 
   await tickDispatch();

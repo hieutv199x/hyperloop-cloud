@@ -16,6 +16,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.758.0",
     "@hyperloop/contracts": "file:../hyperloop-contracts",
     "fastify": "^5.12.7",
     "zod": "^3.24.2"

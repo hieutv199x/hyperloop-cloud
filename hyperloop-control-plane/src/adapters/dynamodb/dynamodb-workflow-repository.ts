@@ -8,11 +8,12 @@ import {
   PutCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import type { WorkflowRecord } from '../../domain/types.js';
+import type { ExecutionLease, WorkflowRecord } from '../../domain/types.js';
 import {
   ConditionalWriteError,
   type WorkflowRepository,
 } from './workflow-repository.js';
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 /**
  * DynamoDB single-table adapter.
@@ -132,5 +133,25 @@ export class DynamoDbWorkflowRepository implements WorkflowRepository {
   async listTimeline(workflowId: string): Promise<WorkflowRecord['timeline']> {
     const workflow = await this.getById(workflowId);
     return workflow?.timeline ?? [];
+  }
+
+  async findByExecutionId(
+    executionId: string,
+  ): Promise<{ workflow: WorkflowRecord; lease: ExecutionLease } | null> {
+    const result = await this.doc.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        IndexName: 'gsi2-correlation',
+        KeyConditionExpression: 'gsi2pk = :pk',
+        ExpressionAttributeValues: { ':pk': `EXEC#${executionId}` },
+        Limit: 1,
+      }),
+    );
+    const item = result.Items?.[0];
+    if (!item?.record || !item?.lease) return null;
+    return {
+      workflow: item.record as WorkflowRecord,
+      lease: item.lease as ExecutionLease,
+    };
   }
 }

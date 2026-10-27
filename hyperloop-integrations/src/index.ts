@@ -2,6 +2,8 @@ export {
   GitLabClient,
   InMemoryGitLabClient,
 } from './gitlab/client.js';
+export { GitLabRestClient } from './gitlab/gitlab-rest-client.js';
+export { GitLabRestSddReader } from './gitlab/gitlab-rest-sdd-reader.js';
 export type {
   CreateOrUpdateMrInput,
   MergeRequestRef,
@@ -14,6 +16,7 @@ export {
   type GitLabSDDReader,
   type SddPackageSnapshot,
 } from './gitlab/sdd-reader.js';
+
 export {
   DevSpecChangeDetector,
   type DevSpecChangeDecision,
@@ -27,6 +30,8 @@ export {
   type EventBus,
   type NormalizedWorkflowEvent,
 } from './events/event-bus.js';
+export { SqsEventBus } from './events/sqs-event-bus.js';
+
 export { buildEventGateway } from './event-gateway/app.js';
 export type { EventGatewayOptions } from './event-gateway/app.js';
 export {

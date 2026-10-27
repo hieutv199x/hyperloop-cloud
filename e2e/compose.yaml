@@ -1,0 +1,18 @@
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.5.2
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    ports:
+      # Host 18000 — avoid colliding with other local stacks on :8000
+      - "18000:8000"
+
+  localstack:
+    image: localstack/localstack:3.8
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,sqs
+      DEFAULT_REGION: ap-southeast-1
+      DEBUG: "0"
+    volumes:
+      - "./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh"
