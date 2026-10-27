@@ -18,12 +18,14 @@ npm run dev
 ## Endpoints
 
 - `GET /health`
-- `POST /webhooks/gitlab/sdd` — idempotent DEV-Spec intake (M1)
+- `POST /executions/:id/authorize-push` — coding/fix fence check (v1.3)
 - `GET /workflows/:id`, `GET /workflows/:id/timeline`
-- `POST /workflows/:id/complete-planner` — M1 helper until Job watcher (M2)
+- `POST /workflows/:id/complete-planner` — helper until Job result watcher
 - `POST /workflows/:id/cancel`, `POST /workflows/:id/resume`
-- `POST /workflows/:id/approve-spec` → 501 until M3
-- `GET /scheduler/capacity` — scaffold until M1.5
+- `POST /workflows/:id/approve-spec` — HITL (M3)
+- `GET /scheduler/capacity`, `GET /scheduler/queues`
+
+**Webhooks** (`/webhooks/gitlab/*`, `/webhooks/jenkins/*`) live in **Event Gateway** (`hyperloop-integrations`), not Control Plane (v1.3).
 
 ## M1 acceptance
 

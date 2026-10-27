@@ -8,7 +8,6 @@ import {
   WorkflowOrchestrator,
 } from '../application/workflow-orchestrator.js';
 import { loadConfig } from '../config.js';
-import type { DevSpecDocument } from '../domain/types.js';
 import { DEFAULT_SCHEDULER_CONFIG } from '../scheduler/config.js';
 import { JobQueueScheduler } from '../scheduler/job-queue-scheduler.js';
 import { ApproverPolicy } from '../security/approver-policy.js';
@@ -64,7 +63,8 @@ export function buildApp(options: AppOptions = {}) {
       agentNamespace: config.AGENT_NAMESPACE,
       agentImages: config.agentImages,
       agentImageAllowlist: config.agentImageAllowlist,
-      webhookSecret: options.webhookSecret ?? process.env.GITLAB_SDD_WEBHOOK_SECRET,
+      // Webhook auth lives in Event Gateway (v1.3); CP consumes normalized events only.
+      webhookSecret: options.webhookSecret,
       approverPolicy: ApproverPolicy.fromAllowlist(allowlist),
       onApprovalsInvalidated: (workflowId) => {
         scheduler.store.clearSpecApproval(workflowId);
@@ -95,67 +95,6 @@ export function buildApp(options: AppOptions = {}) {
       return reply.code(result.statusCode).send({ error: result.reason });
     }
     return { ok: true, executionId: result.executionId, workflowId: result.workflowId };
-  });
-
-  app.post('/webhooks/gitlab/sdd', async (request, reply) => {
-    const headerSecret =
-      (request.headers['x-gitlab-token'] as string | undefined) ??
-      (request.headers['x-hyperloop-webhook-secret'] as string | undefined);
-
-    const body = request.body as {
-      eventId?: string;
-      occurredAt?: string;
-      project?: string;
-      userStory?: string;
-      revision?: number;
-      sddCommitSha?: string;
-      sddPath?: string;
-      devSpec?: DevSpecDocument;
-    };
-
-    if (
-      !body.eventId ||
-      !body.occurredAt ||
-      !body.project ||
-      !body.userStory ||
-      !body.revision ||
-      !body.sddCommitSha ||
-      !body.sddPath ||
-      !body.devSpec
-    ) {
-      return reply.code(400).send({ error: 'Invalid SDD webhook payload' });
-    }
-
-    const result = await orchestrator.submitDevSpec({
-      eventId: body.eventId,
-      occurredAt: body.occurredAt,
-      project: body.project,
-      userStory: body.userStory,
-      revision: body.revision,
-      sddCommitSha: body.sddCommitSha,
-      sddPath: body.sddPath,
-      devSpec: body.devSpec,
-      webhookSecret: headerSecret,
-    });
-
-    if (result.outcome === 'rejected') {
-      return reply.code(result.statusCode).send({ error: result.reason });
-    }
-
-    return reply.code(result.outcome === 'created' ? 202 : 200).send({
-      outcome: result.outcome,
-      workflowId: result.workflow.workflowId,
-      status: result.workflow.status,
-      desiredJobs: result.workflow.desiredJobs,
-    });
-  });
-
-  app.post('/webhooks/jenkins/ci', async (_request, reply) => {
-    return reply.code(501).send({ error: 'Not implemented', milestone: 'M5' });
-  });
-
-  app.post('/webhooks/gitlab/mr', async (_request, reply) => {
-    return reply.code(501).send({ error: 'Not implemented', milestone: 'M4' });
   });
 
   app.get('/workflows/:id', async (request, reply) => {

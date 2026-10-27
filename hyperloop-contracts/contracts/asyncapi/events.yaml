@@ -3,6 +3,16 @@ info:
   title: Hyperloop Events
   version: 0.1.0
 channels:
+  # Event Gateway → Control Plane (SQS queue: devspec-events)
+  sddRevisionSubmitted:
+    address: hyperloop.sdd_revision_submitted.v1
+    description: Normalized SDD_REVISION_SUBMITTED from Event Gateway
+  ciResultReceived:
+    address: hyperloop.ci_result_received.v1
+    description: Normalized CI_RESULT_RECEIVED from Event Gateway
+  mrMerged:
+    address: hyperloop.mr_merged.v1
+    description: Normalized MR_MERGED from Event Gateway
   gitlabSddSubmitted:
     address: gitlab.sdd.dev_spec_submitted.v1
   specDecision:

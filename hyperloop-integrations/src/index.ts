@@ -21,3 +21,17 @@ export {
 } from './gitlab/dev-spec-change-detector.js';
 export { JenkinsCallbackParser } from './jenkins/callback.js';
 export { verifySharedSecret } from './common/auth.js';
+export {
+  InMemoryEventBus,
+  DEVSPEC_EVENTS_QUEUE,
+  type EventBus,
+  type NormalizedWorkflowEvent,
+} from './events/event-bus.js';
+export { buildEventGateway } from './event-gateway/app.js';
+export type { EventGatewayOptions } from './event-gateway/app.js';
+export {
+  normalizeSddSubmitted,
+  normalizeCiResult,
+  normalizeMrMerged,
+  buildWorkflowId,
+} from './event-gateway/normalize.js';

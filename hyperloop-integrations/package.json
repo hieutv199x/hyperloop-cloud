@@ -7,6 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start:event-gateway": "node dist/event-gateway/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc -p tsconfig.json --noEmit"
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@hyperloop/contracts": "file:../hyperloop-contracts",
+    "fastify": "^5.12.7",
     "zod": "^3.24.2"
   },
   "devDependencies": {
