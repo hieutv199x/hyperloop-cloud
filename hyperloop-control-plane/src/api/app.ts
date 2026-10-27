@@ -1,6 +1,5 @@
 import Fastify from 'fastify';
-import { InMemoryWorkflowRepository } from '../adapters/dynamodb/in-memory-workflow-repository.js';
-import { FakeKubernetesAdapter } from '../adapters/kubernetes/fake-kubernetes.js';
+import type { WorkflowRepository } from '../adapters/dynamodb/workflow-repository.js';
 import { ApprovalService } from '../application/approval-service.js';
 import { ExecutionFenceService } from '../application/execution-fence-service.js';
 import {
@@ -8,9 +7,11 @@ import {
   WorkflowOrchestrator,
 } from '../application/workflow-orchestrator.js';
 import { loadConfig } from '../config.js';
-import { DEFAULT_SCHEDULER_CONFIG } from '../scheduler/config.js';
+import { buildRuntime, type ControlPlaneRuntime } from '../main/runtime.js';
 import { JobQueueScheduler } from '../scheduler/job-queue-scheduler.js';
 import { ApproverPolicy } from '../security/approver-policy.js';
+import { FakeKubernetesAdapter } from '../adapters/kubernetes/fake-kubernetes.js';
+import { DEFAULT_SCHEDULER_CONFIG } from '../scheduler/config.js';
 import { InMemoryQueueBus } from '../workers/in-memory-queue.js';
 
 export interface AppOptions {
@@ -18,9 +19,11 @@ export interface AppOptions {
   scheduler?: JobQueueScheduler;
   approvalService?: ApprovalService;
   fenceService?: ExecutionFenceService;
-  workflowRepository?: InMemoryWorkflowRepository;
+  /** Test helper: custom workflow repository without full runtime inject. */
+  workflowRepository?: WorkflowRepository;
   webhookSecret?: string;
   approverAllowlist?: string[];
+  runtime?: ControlPlaneRuntime;
 }
 
 export function buildApp(options: AppOptions = {}) {
@@ -29,57 +32,97 @@ export function buildApp(options: AppOptions = {}) {
     NODE_ENV: process.env.NODE_ENV ?? 'development',
   });
 
-  const kubernetes = new FakeKubernetesAdapter();
-  const queueBus = new InMemoryQueueBus();
-  const scheduler =
-    options.scheduler ??
-    new JobQueueScheduler(
-      {
-        ...DEFAULT_SCHEDULER_CONFIG,
-        globalMaxConcurrentJobs: config.GLOBAL_MAX_CONCURRENT_JOBS,
-        kubernetes: {
-          ...DEFAULT_SCHEDULER_CONFIG.kubernetes,
-          namespace: config.AGENT_NAMESPACE,
+  let resolved = options.runtime;
+  if (!resolved && options.workflowRepository) {
+    const kubernetes = new FakeKubernetesAdapter();
+    const queueBus = new InMemoryQueueBus();
+    const scheduler =
+      options.scheduler ??
+      new JobQueueScheduler(
+        {
+          ...DEFAULT_SCHEDULER_CONFIG,
+          globalMaxConcurrentJobs: config.GLOBAL_MAX_CONCURRENT_JOBS,
+          kubernetes: {
+            ...DEFAULT_SCHEDULER_CONFIG.kubernetes,
+            namespace: config.AGENT_NAMESPACE,
+            images: config.agentImages,
+            imageAllowlist: [...config.agentImageAllowlist],
+          },
         },
+        kubernetes,
+        { queueBus },
+      );
+    const allowlist =
+      options.approverAllowlist ??
+      (process.env.APPROVER_ALLOWLIST
+        ? process.env.APPROVER_ALLOWLIST.split(',').map((s) => s.trim()).filter(Boolean)
+        : ['*']);
+    const orchestrator =
+      options.orchestrator ??
+      new WorkflowOrchestrator({
+        repository: options.workflowRepository,
+        kubernetes,
+        agentNamespace: config.AGENT_NAMESPACE,
+        agentImages: config.agentImages,
+        agentImageAllowlist: config.agentImageAllowlist,
+        webhookSecret: options.webhookSecret,
+        approverPolicy: ApproverPolicy.fromAllowlist(allowlist),
+        onApprovalsInvalidated: (workflowId) => {
+          scheduler.store.clearSpecApproval(workflowId);
+        },
+      });
+    const approvalService =
+      options.approvalService ?? new ApprovalService(orchestrator, scheduler);
+    const fenceService =
+      options.fenceService ?? new ExecutionFenceService(options.workflowRepository);
+    // Minimal runtime-shaped object for /health adapterMode
+    resolved = {
+      adapters: {
+        mode: 'memory',
+        workflowRepository: options.workflowRepository,
+        artifactStore: undefined as never,
+        kubernetes,
+        schedulerStore: scheduler.store,
+        queueBus,
+        schedulerConfig: scheduler.config,
       },
-      kubernetes,
-      { queueBus },
-    );
+      orchestrator,
+      scheduler,
+      approvalService,
+      fenceService,
+      ciDecision: undefined as never,
+      eventBus: undefined as never,
+      eventConsumer: undefined as never,
+      queueBus,
+    };
+  }
 
-  const allowlist =
-    options.approverAllowlist ??
-    (process.env.APPROVER_ALLOWLIST
-      ? process.env.APPROVER_ALLOWLIST.split(',').map((s) => s.trim()).filter(Boolean)
-      : ['*']);
-
-  const workflowRepository =
-    options.workflowRepository ?? new InMemoryWorkflowRepository();
-
-  const orchestrator =
-    options.orchestrator ??
-    new WorkflowOrchestrator({
-      repository: workflowRepository,
-      kubernetes,
-      agentNamespace: config.AGENT_NAMESPACE,
-      agentImages: config.agentImages,
-      agentImageAllowlist: config.agentImageAllowlist,
-      // Webhook auth lives in Event Gateway (v1.3); CP consumes normalized events only.
-      webhookSecret: options.webhookSecret,
-      approverPolicy: ApproverPolicy.fromAllowlist(allowlist),
-      onApprovalsInvalidated: (workflowId) => {
-        scheduler.store.clearSpecApproval(workflowId);
-      },
-    });
-
-  const approvalService =
-    options.approvalService ?? new ApprovalService(orchestrator, scheduler);
-
-  const fenceService =
-    options.fenceService ?? new ExecutionFenceService(workflowRepository);
+  const activeRuntime = resolved ?? buildRuntime(config);
+  const scheduler = options.scheduler ?? activeRuntime.scheduler;
+  const orchestrator = options.orchestrator ?? activeRuntime.orchestrator;
+  const approvalService = options.approvalService ?? activeRuntime.approvalService;
+  const fenceService = options.fenceService ?? activeRuntime.fenceService;
+  const queueBus = activeRuntime.queueBus;
 
   const app = Fastify({ logger: config.NODE_ENV !== 'test' });
 
-  app.get('/health', async () => ({ status: 'ok', service: 'hyperloop-control-plane' }));
+  app.get('/health', async () => ({
+    status: 'ok',
+    service: 'hyperloop-control-plane',
+    adapterMode: activeRuntime.adapters.mode,
+  }));
+
+  app.get('/metrics', async () => {
+    scheduler.refreshMetrics();
+    return {
+      scheduler: scheduler.metrics.snapshot(),
+      capacity: scheduler.store.capacity.snapshot(scheduler.store.activeByStage()),
+      queues: {
+        depths: queueBus.depths(),
+        durableQueued: scheduler.store.countByStatus('QUEUED'),
+      },
+    };
+  });
 
   app.post('/executions/:id/authorize-push', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -156,7 +199,6 @@ export function buildApp(options: AppOptions = {}) {
       comment?: string;
     };
 
-    // Server-side identity: prefer gateway-asserted header over body (Teams must set this).
     const headerEntra = request.headers['x-hyperloop-entra-id'] as string | undefined;
     const headerName = request.headers['x-hyperloop-entra-name'] as string | undefined;
 
@@ -241,6 +283,9 @@ export function buildApp(options: AppOptions = {}) {
       metrics: scheduler.metrics.snapshot(),
     });
   });
+
+  (app as typeof app & { hyperloopRuntime?: ControlPlaneRuntime }).hyperloopRuntime =
+    activeRuntime;
 
   return app;
 }
