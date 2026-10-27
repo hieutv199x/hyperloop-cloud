@@ -7,7 +7,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev:api": "tsx watch src/index.ts api",
+    "dev:scheduler": "tsx watch src/index.ts scheduler",
+    "start": "node dist/index.js api",
+    "start:api": "node dist/index.js api",
+    "start:scheduler": "node dist/index.js scheduler",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc -p tsconfig.json --noEmit"

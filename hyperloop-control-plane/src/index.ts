@@ -1,10 +1,20 @@
-import { buildApp } from './api/app.js';
-import { loadConfig } from './config.js';
+import { startApi } from './main/api.js';
+import { startScheduler } from './main/scheduler.js';
+
+const command = process.argv[2] ?? 'api';
 
 async function main(): Promise<void> {
-  const config = loadConfig();
-  const app = buildApp();
-  await app.listen({ port: config.PORT, host: '0.0.0.0' });
+  if (command === 'api') {
+    await startApi();
+    return;
+  }
+  if (command === 'scheduler') {
+    await startScheduler();
+    return;
+  }
+
+  console.error(`Unknown command: ${command}. Use: api | scheduler`);
+  process.exit(2);
 }
 
 main().catch((error: unknown) => {

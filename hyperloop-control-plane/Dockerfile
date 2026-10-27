@@ -14,4 +14,5 @@ RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 USER node
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+# Default process is API; scheduler Deployment overrides args to ["scheduler"].
+CMD ["node", "dist/index.js", "api"]
