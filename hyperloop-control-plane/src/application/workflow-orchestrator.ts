@@ -461,10 +461,17 @@ export class WorkflowOrchestrator {
     const workflow = await this.requireWorkflow(workflowId);
     assertTransition(workflow.status, 'CANCELLED');
     const expectedVersion = workflow.version;
+    const at = this.now().toISOString();
     workflow.status = 'CANCELLED';
+    workflow.executions = (workflow.executions ?? []).map((lease) =>
+      lease.fencedAt ? lease : { ...lease, fencedAt: at },
+    );
     workflow.version += 1;
-    workflow.updatedAt = this.now().toISOString();
-    workflow.timeline.push({ at: workflow.updatedAt, type: 'CANCELLED' });
+    workflow.updatedAt = at;
+    workflow.timeline.push({ at, type: 'CANCELLED' });
+    if ((workflow.executions ?? []).some((e) => e.fencedAt === at)) {
+      workflow.timeline.push({ at, type: 'EXECUTIONS_FENCED', detail: 'workflow cancelled' });
+    }
     await this.deps.repository.updateConditional(workflow, expectedVersion);
     return workflow;
   }

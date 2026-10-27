@@ -2,11 +2,18 @@ import type { ArtifactStore } from '../../artifacts/types.js';
 import { buildArtifactUri } from '../../artifacts/types.js';
 import type { AgentInput, AgentOutput } from '../../runner/run-agent.js';
 import { invokeKiroCoding } from '../../runner/kiro-coding.js';
+import type { AuthorizePushClient } from '../../security/authorize-push.js';
 
 export interface CodingGitLabPort {
   assertRepoAllowlisted(projectId: string): void;
-  ensureTargetBranchExists(projectId: string, targetBranch: string): Promise<unknown>;
-  checkoutWorkingBranch(projectId: string, workingBranch: string): Promise<unknown>;
+  ensureTargetBranchExists(
+    projectId: string,
+    targetBranch: string,
+  ): Promise<{ commitSha?: string } | unknown>;
+  checkoutWorkingBranch(
+    projectId: string,
+    workingBranch: string,
+  ): Promise<{ commitSha?: string } | unknown>;
   pushCommit(input: {
     projectId: string;
     branch: string;
@@ -53,9 +60,14 @@ export interface CodingInput extends AgentInput {
   artifactsBucket: string;
   artifactStore: ArtifactStore;
   gitlab: CodingGitLabPort;
+  /** v1.3: expected HEAD SHA of working branch before mutation. */
+  expectedBaseSha?: string;
+  executionId?: string;
+  fenceToken?: string;
+  /** Prefer Control Plane authorize-push; falls back to assertPushAllowed. */
+  authorizePush?: AuthorizePushClient;
   /**
-   * v1.2 fencing: called immediately before git push.
-   * Throw to deny further mutation when the execution is obsolete.
+   * Legacy fencing hook. Throw to deny further mutation when the execution is obsolete.
    */
   assertPushAllowed?: () => void;
   /** Simulate crash after git push but before MR/checkpoint. */
@@ -105,7 +117,26 @@ export async function runCoding(input: CodingInput | AgentInput): Promise<AgentO
   try {
     input.gitlab.assertRepoAllowlisted(input.repository);
     await input.gitlab.ensureTargetBranchExists(input.repository, input.targetBranch);
-    await input.gitlab.checkoutWorkingBranch(input.repository, input.workingBranch);
+    const checkedOut = await input.gitlab.checkoutWorkingBranch(
+      input.repository,
+      input.workingBranch,
+    );
+    const headSha =
+      checkedOut && typeof checkedOut === 'object' && 'commitSha' in checkedOut
+        ? String((checkedOut as { commitSha?: string }).commitSha ?? '')
+        : '';
+
+    if (input.expectedBaseSha && headSha && headSha !== input.expectedBaseSha) {
+      return {
+        jobId: input.jobId,
+        stage: 'coding',
+        exitStatus: 'FAILED',
+        message: `Working branch HEAD ${headSha} does not match expectedBaseSha ${input.expectedBaseSha}`,
+        outputArtifactUris: [],
+        errorCode: 'HL_CODING_BASE_SHA_DRIFT',
+        branch: input.workingBranch,
+      };
+    }
 
     // Idempotent recovery: if prior attempt already pushed (and maybe MR'd), reuse.
     const existingCommit = input.gitlab.findCommitByWorkflowMarker
@@ -135,19 +166,29 @@ export async function runCoding(input: CodingInput | AgentInput): Promise<AgentO
       workingBranch: input.workingBranch,
     });
 
-    try {
-      input.assertPushAllowed?.();
-    } catch (error) {
+    // Re-check HEAD immediately before push (race with concurrent commits).
+    const beforePush = await input.gitlab.checkoutWorkingBranch(
+      input.repository,
+      input.workingBranch,
+    );
+    const beforePushSha =
+      beforePush && typeof beforePush === 'object' && 'commitSha' in beforePush
+        ? String((beforePush as { commitSha?: string }).commitSha ?? '')
+        : '';
+    if (input.expectedBaseSha && beforePushSha && beforePushSha !== input.expectedBaseSha) {
       return {
         jobId: input.jobId,
         stage: 'coding',
         exitStatus: 'FAILED',
-        message: error instanceof Error ? error.message : 'Push fenced',
+        message: `Pre-push HEAD ${beforePushSha} drifted from expectedBaseSha ${input.expectedBaseSha}`,
         outputArtifactUris: [],
-        errorCode: 'HL_CODING_EXECUTION_FENCED',
+        errorCode: 'HL_CODING_BASE_SHA_DRIFT',
         branch: input.workingBranch,
       };
     }
+
+    const fenceDenied = await enforceFence(input);
+    if (fenceDenied) return fenceDenied;
 
     const commit = await input.gitlab.pushCommit({
       projectId: input.repository,
@@ -203,6 +244,42 @@ export async function runCoding(input: CodingInput | AgentInput): Promise<AgentO
       message: error instanceof Error ? error.message : 'Coding failed',
       outputArtifactUris: [],
       errorCode: 'HL_CODING_FAILED',
+    };
+  }
+}
+
+async function enforceFence(input: CodingInput): Promise<AgentOutput | null> {
+  if (input.authorizePush && input.executionId && input.fenceToken) {
+    const decision = await input.authorizePush({
+      executionId: input.executionId,
+      fenceToken: input.fenceToken,
+    });
+    if (decision === 'denied') {
+      return {
+        jobId: input.jobId,
+        stage: 'coding',
+        exitStatus: 'FAILED',
+        message: `Execution fenced for ${input.executionId}; further push denied`,
+        outputArtifactUris: [],
+        errorCode: 'HL_CODING_EXECUTION_FENCED',
+        branch: input.workingBranch,
+      };
+    }
+    return null;
+  }
+
+  try {
+    input.assertPushAllowed?.();
+    return null;
+  } catch (error) {
+    return {
+      jobId: input.jobId,
+      stage: 'coding',
+      exitStatus: 'FAILED',
+      message: error instanceof Error ? error.message : 'Push fenced',
+      outputArtifactUris: [],
+      errorCode: 'HL_CODING_EXECUTION_FENCED',
+      branch: input.workingBranch,
     };
   }
 }

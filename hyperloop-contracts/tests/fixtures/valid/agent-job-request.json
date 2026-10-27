@@ -1,14 +1,17 @@
 {
+  "executionId": "exec-planner-1",
   "jobId": "job-planner-1",
   "workflowId": "WF#PAY-1234#1",
+  "role": "planner",
   "stage": "planner",
   "attempt": 1,
-  "approvedSpecHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "sddRepository": "group/payment-sdd",
+  "sddCommitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "devSpecPath": "04-development/PAY-1234/dev-spec.yaml",
+  "artifactPrefixUri": "s3://hyperloop-artifacts/WF-PAY-1234-1/",
+  "fenceToken": "fence-token-planner-0001",
+  "leaseExpiresAt": "2026-10-27T12:00:00.000Z",
   "inputArtifactUris": [
-    "s3://hyperloop-artifacts/wf-PAY-1234-1/sdd/dev-spec.yaml"
-  ],
-  "branchContract": {
-    "workingBranch": "feature/PAY-1234",
-    "targetBranch": "release/2.5.0"
-  }
+    "s3://hyperloop-artifacts/WF-PAY-1234-1/sdd/dev-spec.yaml"
+  ]
 }

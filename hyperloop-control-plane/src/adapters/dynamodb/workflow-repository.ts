@@ -1,4 +1,4 @@
-import type { WorkflowRecord } from '../../domain/types.js';
+import type { ExecutionLease, WorkflowRecord } from '../../domain/types.js';
 
 export class ConditionalWriteError extends Error {
   constructor(message: string) {
@@ -16,6 +16,10 @@ export interface WorkflowRepository {
   ): Promise<void>;
   recordEventOnce(eventId: string, workflowId: string): Promise<'recorded' | 'duplicate'>;
   listTimeline(workflowId: string): Promise<WorkflowRecord['timeline']>;
+  /** Optional index for authorize-push by executionId. */
+  findByExecutionId?(
+    executionId: string,
+  ): Promise<{ workflow: WorkflowRecord; lease: ExecutionLease } | null>;
 }
 
 export function buildWorkflowId(userStory: string, revision: number): string {

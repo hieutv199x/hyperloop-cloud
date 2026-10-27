@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { InMemoryWorkflowRepository } from '../adapters/dynamodb/in-memory-workflow-repository.js';
 import { FakeKubernetesAdapter } from '../adapters/kubernetes/fake-kubernetes.js';
 import { ApprovalService } from '../application/approval-service.js';
+import { ExecutionFenceService } from '../application/execution-fence-service.js';
 import {
   ApprovalError,
   WorkflowOrchestrator,
@@ -17,6 +18,8 @@ export interface AppOptions {
   orchestrator?: WorkflowOrchestrator;
   scheduler?: JobQueueScheduler;
   approvalService?: ApprovalService;
+  fenceService?: ExecutionFenceService;
+  workflowRepository?: InMemoryWorkflowRepository;
   webhookSecret?: string;
   approverAllowlist?: string[];
 }
@@ -50,10 +53,13 @@ export function buildApp(options: AppOptions = {}) {
       ? process.env.APPROVER_ALLOWLIST.split(',').map((s) => s.trim()).filter(Boolean)
       : ['*']);
 
+  const workflowRepository =
+    options.workflowRepository ?? new InMemoryWorkflowRepository();
+
   const orchestrator =
     options.orchestrator ??
     new WorkflowOrchestrator({
-      repository: new InMemoryWorkflowRepository(),
+      repository: workflowRepository,
       kubernetes,
       agentNamespace: config.AGENT_NAMESPACE,
       agentImages: config.agentImages,
@@ -68,9 +74,28 @@ export function buildApp(options: AppOptions = {}) {
   const approvalService =
     options.approvalService ?? new ApprovalService(orchestrator, scheduler);
 
+  const fenceService =
+    options.fenceService ?? new ExecutionFenceService(workflowRepository);
+
   const app = Fastify({ logger: config.NODE_ENV !== 'test' });
 
   app.get('/health', async () => ({ status: 'ok', service: 'hyperloop-control-plane' }));
+
+  app.post('/executions/:id/authorize-push', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { fenceToken?: string };
+    if (!body.fenceToken) {
+      return reply.code(400).send({ error: 'fenceToken required' });
+    }
+    const result = await fenceService.authorizePush({
+      executionId: id,
+      fenceToken: body.fenceToken,
+    });
+    if (!result.ok) {
+      return reply.code(result.statusCode).send({ error: result.reason });
+    }
+    return { ok: true, executionId: result.executionId, workflowId: result.workflowId };
+  });
 
   app.post('/webhooks/gitlab/sdd', async (request, reply) => {
     const headerSecret =

@@ -19,5 +19,10 @@ export {
   type ArtifactStore,
 } from './artifacts/types.js';
 export { scrubSecrets } from './security/scrub.js';
+export {
+  createHttpAuthorizePushClient,
+  type AuthorizePushClient,
+  type AuthorizePushResult,
+} from './security/authorize-push.js';
 export { invokeKiroPlanner } from './runner/kiro-cli.js';
 export { invokeKiroCoding } from './runner/kiro-coding.js';

@@ -96,9 +96,23 @@ export interface WorkflowRecord {
   implementationSpecUri?: string;
   approvals: ApprovalRecord[];
   desiredJobs: DesiredJobIntent[];
+  /** v1.3: issued execution leases / fence tokens (durable with workflow). */
+  executions?: ExecutionLease[];
   createdAt: string;
   updatedAt: string;
   timeline: Array<{ at: string; type: string; detail?: string }>;
+}
+
+export interface ExecutionLease {
+  executionId: string;
+  jobId: string;
+  role: 'planner' | 'coding' | 'fix';
+  fenceToken: string;
+  leaseExpiresAt: string;
+  issuedAt: string;
+  repository?: string;
+  /** When set, authorize-push must deny further git mutation. */
+  fencedAt?: string;
 }
 
 export interface ApproveSpecInput {

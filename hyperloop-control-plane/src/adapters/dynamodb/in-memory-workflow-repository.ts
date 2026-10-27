@@ -1,4 +1,4 @@
-import type { WorkflowRecord } from '../../domain/types.js';
+import type { ExecutionLease, WorkflowRecord } from '../../domain/types.js';
 import {
   ConditionalWriteError,
   type WorkflowRepository,
@@ -7,6 +7,7 @@ import {
 export class InMemoryWorkflowRepository implements WorkflowRepository {
   private readonly workflows = new Map<string, WorkflowRecord>();
   private readonly events = new Map<string, string>();
+  private readonly executionIndex = new Map<string, string>();
 
   async getById(workflowId: string): Promise<WorkflowRecord | null> {
     const current = this.workflows.get(workflowId);
@@ -18,6 +19,7 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       return 'exists';
     }
     this.workflows.set(workflow.workflowId, structuredClone(workflow));
+    this.indexExecutions(workflow);
     return 'created';
   }
 
@@ -35,6 +37,25 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       );
     }
     this.workflows.set(workflow.workflowId, structuredClone(workflow));
+    this.indexExecutions(workflow);
+  }
+
+  async findByExecutionId(
+    executionId: string,
+  ): Promise<{ workflow: WorkflowRecord; lease: ExecutionLease } | null> {
+    const workflowId = this.executionIndex.get(executionId);
+    if (!workflowId) return null;
+    const workflow = await this.getById(workflowId);
+    if (!workflow) return null;
+    const lease = workflow.executions?.find((e) => e.executionId === executionId);
+    if (!lease) return null;
+    return { workflow, lease };
+  }
+
+  private indexExecutions(workflow: WorkflowRecord): void {
+    for (const lease of workflow.executions ?? []) {
+      this.executionIndex.set(lease.executionId, workflow.workflowId);
+    }
   }
 
   async recordEventOnce(

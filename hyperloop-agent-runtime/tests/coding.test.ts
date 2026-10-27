@@ -59,6 +59,53 @@ describe('coding M4', () => {
     expect(gl.commits).toHaveLength(0);
   });
 
+  it('authorize-push denied → zero commits', async () => {
+    const gl = gitlab();
+    const result = await runCoding({
+      stage: 'coding',
+      jobId: 'job-coding-fence',
+      workflowId: 'WF#PAY-1234#1',
+      repository: 'coc-ewallet-service',
+      workingBranch: 'feature/PAY-1234',
+      targetBranch: 'release/2.5.0',
+      approvedSpecHash: SPEC,
+      expectedApprovedSpecHash: SPEC,
+      artifactsBucket: 'hyperloop-artifacts',
+      artifactStore: new InMemoryArtifactStore(),
+      gitlab: gl,
+      executionId: 'exec:job-coding-fence',
+      fenceToken: 'token',
+      authorizePush: async () => 'denied',
+    });
+    expect(result.errorCode).toBe('HL_CODING_EXECUTION_FENCED');
+    expect(gl.commits).toHaveLength(0);
+  });
+
+  it('expectedBaseSha drift → no mutation', async () => {
+    const gl = gitlab();
+    const branch = await gl.checkoutWorkingBranch(
+      'coc-ewallet-service',
+      'feature/PAY-1234',
+    );
+    const result = await runCoding({
+      stage: 'coding',
+      jobId: 'job-coding-drift',
+      workflowId: 'WF#PAY-1234#1',
+      repository: 'coc-ewallet-service',
+      workingBranch: 'feature/PAY-1234',
+      targetBranch: 'release/2.5.0',
+      approvedSpecHash: SPEC,
+      expectedApprovedSpecHash: SPEC,
+      expectedBaseSha: 'cccccccccccccccccccccccccccccccccccccccc',
+      artifactsBucket: 'hyperloop-artifacts',
+      artifactStore: new InMemoryArtifactStore(),
+      gitlab: gl,
+    });
+    expect(result.errorCode).toBe('HL_CODING_BASE_SHA_DRIFT');
+    expect(branch.commitSha).not.toBe('cccccccccccccccccccccccccccccccccccccccc');
+    expect(gl.commits).toHaveLength(0);
+  });
+
   it('after crash-after-push, retry reconciles without duplicate commit or MR', async () => {
     const gl = gitlab();
     const store = new InMemoryArtifactStore();

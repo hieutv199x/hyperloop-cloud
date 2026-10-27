@@ -96,12 +96,23 @@ describe('M0 fixture matrix', () => {
 
   it('rejects agent-job-request with non-release targetBranch', () => {
     const result = validate('agent-job-request', {
+      executionId: 'exec-1',
       jobId: 'j1',
       workflowId: 'WF#1',
+      role: 'coding',
       stage: 'coding',
       attempt: 1,
+      sddRepository: 'group/sdd',
+      sddCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      devSpecPath: '04-development/x/dev-spec.yaml',
+      artifactPrefixUri: 's3://bucket/wf/',
+      fenceToken: 'fence-token-abcdef012345',
+      leaseExpiresAt: '2026-10-27T12:00:00.000Z',
       approvedSpecHash:
         'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      approvedPlanUri: 's3://bucket/plan.json',
+      expectedBaseSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      repository: 'group/svc',
       inputArtifactUris: ['s3://bucket/a'],
       branchContract: {
         workingBranch: 'feature/x',

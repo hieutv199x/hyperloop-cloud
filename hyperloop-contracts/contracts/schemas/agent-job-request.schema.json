@@ -1,32 +1,52 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hyperloop.dev/schemas/agent-job-request.schema.json",
-  "title": "AgentJobRequest",
+  "title": "AgentExecutionContract",
+  "description": "v1.3 immutable execution contract for Planner/Coding/Fix Jobs. Field `stage` is a deprecated alias of `role`.",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "executionId",
     "jobId",
     "workflowId",
-    "stage",
+    "role",
     "attempt",
-    "approvedSpecHash",
-    "inputArtifactUris",
-    "branchContract"
+    "sddRepository",
+    "sddCommitSha",
+    "devSpecPath",
+    "artifactPrefixUri",
+    "fenceToken",
+    "leaseExpiresAt",
+    "inputArtifactUris"
   ],
   "properties": {
+    "executionId": { "type": "string", "minLength": 1 },
     "jobId": { "type": "string", "minLength": 1 },
     "workflowId": { "type": "string", "minLength": 1 },
-    "stage": { "type": "string", "enum": ["planner", "coding", "fix"] },
-    "attempt": { "type": "integer", "minimum": 1 },
-    "repository": { "type": "string" },
-    "approvedSpecHash": {
+    "role": { "type": "string", "enum": ["planner", "coding", "fix"] },
+    "stage": {
       "type": "string",
-      "pattern": "^sha256:[a-f0-9]{64}$"
+      "enum": ["planner", "coding", "fix"],
+      "description": "Deprecated alias of role; when present must equal role"
     },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "sddRepository": { "type": "string", "minLength": 1 },
+    "sddCommitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "devSpecPath": { "type": "string", "minLength": 1 },
+    "artifactPrefixUri": { "type": "string", "format": "uri" },
+    "fenceToken": { "type": "string", "minLength": 16 },
+    "leaseExpiresAt": { "type": "string", "format": "date-time" },
     "inputArtifactUris": {
       "type": "array",
       "items": { "type": "string", "format": "uri" }
     },
+    "repository": { "type": "string", "minLength": 1 },
+    "approvedSpecHash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "approvedPlanUri": { "type": "string", "format": "uri" },
+    "expectedBaseSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
     "branchContract": {
       "type": "object",
       "additionalProperties": false,
@@ -40,6 +60,59 @@
       }
     },
     "failedCommitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-    "ciReportUri": { "type": "string", "format": "uri" }
-  }
+    "ciReportUri": { "type": "string", "format": "uri" },
+    "fixAttempt": { "type": "integer", "minimum": 1, "maximum": 2 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "role": { "const": "planner" } },
+        "required": ["role"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["repository"] },
+            { "required": ["branchContract"] },
+            { "required": ["approvedSpecHash"] },
+            { "required": ["approvedPlanUri"] },
+            { "required": ["expectedBaseSha"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "role": { "const": "coding" } },
+        "required": ["role"]
+      },
+      "then": {
+        "required": [
+          "repository",
+          "branchContract",
+          "approvedSpecHash",
+          "approvedPlanUri",
+          "expectedBaseSha"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "role": { "const": "fix" } },
+        "required": ["role"]
+      },
+      "then": {
+        "required": [
+          "repository",
+          "branchContract",
+          "approvedSpecHash",
+          "approvedPlanUri",
+          "expectedBaseSha",
+          "failedCommitSha",
+          "ciReportUri",
+          "fixAttempt"
+        ]
+      }
+    }
+  ]
 }
