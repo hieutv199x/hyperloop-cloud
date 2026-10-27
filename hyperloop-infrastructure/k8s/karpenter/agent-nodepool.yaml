@@ -1,7 +1,28 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+spec:
+  role: HyperloopAgentNodeRole
+  amiFamily: AL2023
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: hyperloop
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: hyperloop
+  tags:
+    Project: hyperloop
+    Workload: agents
+---
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
 spec:
   template:
     metadata:
@@ -12,6 +33,10 @@ spec:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: hyperloop-agents
+      taints:
+        - key: hyperloop.dev/workload
+          value: agents
+          effect: NoSchedule
       requirements:
         - key: kubernetes.io/arch
           operator: In
@@ -19,6 +44,9 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
+        - key: hyperloop.dev/nodepool
+          operator: In
+          values: ["agents"]
   limits:
     cpu: "100"
     memory: 200Gi

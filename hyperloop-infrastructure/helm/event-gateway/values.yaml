@@ -1,0 +1,62 @@
+namespace: hyperloop-system
+replicaCount: 2
+
+image:
+  repository: nexus.company.local/hyperloop/event-gateway
+  tag: "0.1.0"
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: event-gateway
+  annotations: {}
+  # IRSA example:
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/hyperloop-event-gateway
+
+service:
+  type: ClusterIP
+  port: 8081
+
+env:
+  PORT: "8081"
+  SQS_DEVSPEC_EVENTS_QUEUE: hyperloop-devspec-events-queue-dev
+  SQS_CI_EVENTS_QUEUE: hyperloop-ci-events-queue-dev
+  SQS_MR_EVENTS_QUEUE: hyperloop-mr-events-queue-dev
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /health
+    initialDelaySeconds: 3
+    periodSeconds: 5
+
+podDisruptionBudget:
+  minAvailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]

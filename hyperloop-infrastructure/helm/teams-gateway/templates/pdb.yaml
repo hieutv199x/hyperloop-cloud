@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: teams-gateway
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "teams-gateway.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "teams-gateway.selectorLabels" . | nindent 6 }}
+{{- end }}

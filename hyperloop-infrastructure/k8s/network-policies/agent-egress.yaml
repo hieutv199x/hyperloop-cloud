@@ -1,25 +1,62 @@
+# Default-deny egress for agent Pods, then allowlist required destinations.
+# Replace placeholder CIDRs per environment (GitLab, Nexus, S3/STS VPC endpoints, Kiro).
+# Kubernetes API access is intentionally omitted from the allowlist.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: hyperloop-agent-egress
   namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
 spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: hyperloop
   policyTypes:
+    - Ingress
     - Egress
+  ingress: [] # Jobs are not ingress services
   egress:
-    # DNS
+    # Cluster DNS
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
           port: 53
-    # Placeholder CIDRs / FQDNs for GitLab, Nexus, S3, Kiro — tighten per environment.
+        - protocol: TCP
+          port: 53
+    # GitLab (HTTPS) — set real CIDR/FQDN via overlay
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8 # placeholder: private GitLab
+      ports:
+        - protocol: TCP
+          port: 443
+    # Private Nexus registry
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8 # placeholder: Nexus
+      ports:
+        - protocol: TCP
+          port: 443
+    # S3 / STS VPC endpoints (or NAT to AWS)
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8 # placeholder: VPC interface endpoints
+      ports:
+        - protocol: TCP
+          port: 443
+    # Kiro service endpoint (via NAT/proxy as required)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
       ports:
         - protocol: TCP
           port: 443

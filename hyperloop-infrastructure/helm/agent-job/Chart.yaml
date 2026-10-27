@@ -1,6 +1,6 @@
 apiVersion: v2
 name: hyperloop-agent-job
-description: Template values for ephemeral Hyperloop agent Jobs
+description: Agent image allowlist + Job defaults (no always-on Deployment)
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

@@ -1,12 +1,44 @@
+# Ephemeral Jobs only — this chart MUST NOT render a Deployment.
 namespace: hyperloop-agents
+
 backoffLimit: 0
 ttlSecondsAfterFinished: 600
 restartPolicy: Never
 activeDeadlineSeconds: 3600
 
-image:
-  repository: nexus.example/hyperloop/kiro-agent
-  digest: "" # pin by digest in prod
-  tag: "0.1.0"
+# Role → image digest allowlist consumed by control-plane-scheduler.
+# Prefer digests in prod; tags allowed for local/dev.
+images:
+  planner:
+    repository: nexus.company.local/hyperloop/kiro-agent-planner
+    tag: "0.1.0"
+    digest: ""
+  coding:
+    repository: nexus.company.local/hyperloop/kiro-agent-coding
+    tag: "0.1.0"
+    digest: ""
+  fix:
+    repository: nexus.company.local/hyperloop/kiro-agent-fix
+    tag: "0.1.0"
+    digest: ""
 
-serviceAccountName: hyperloop-agent
+serviceAccounts:
+  planner:
+    name: hyperloop-agent-planner
+    annotations: {}
+  coding:
+    name: hyperloop-agent-coding
+    annotations: {}
+  fix:
+    name: hyperloop-agent-fix
+    annotations: {}
+
+# Reference Job template fields for the KubernetesJobAdapter (not applied as a live Deployment).
+jobDefaults:
+  nodeSelector:
+    hyperloop.dev/nodepool: agents
+  tolerations:
+    - key: hyperloop.dev/workload
+      operator: Equal
+      value: agents
+      effect: NoSchedule

@@ -1,0 +1,31 @@
+{{- if .Values.api.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: control-plane-api
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane-api
+spec:
+  minAvailable: {{ .Values.api.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "control-plane.api.selectorLabels" . | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.scheduler.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: control-plane-scheduler
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane-scheduler
+spec:
+  minAvailable: {{ .Values.scheduler.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "control-plane.scheduler.selectorLabels" . | nindent 6 }}
+{{- end }}

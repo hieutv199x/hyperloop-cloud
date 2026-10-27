@@ -1,25 +1,51 @@
-replicaCount: 2
+namespace: hyperloop-system
+agentNamespace: hyperloop-agents
 
 image:
-  repository: nexus.example/hyperloop/control-plane
+  repository: nexus.company.local/hyperloop/control-plane
   tag: "0.1.0"
+  digest: ""
   pullPolicy: IfNotPresent
 
-service:
-  port: 8080
+imagePullSecrets: []
 
-env:
-  GLOBAL_MAX_CONCURRENT_JOBS: "100"
-  AGENT_NAMESPACE: hyperloop-agents
-  DYNAMODB_TABLE: hyperloop-workflows-dev
-  ARTIFACTS_BUCKET: hyperloop-artifacts-dev
-  SCHEDULER_POLL_INTERVAL_SECONDS: "5"
-  SCHEDULER_RECONCILE_INTERVAL_SECONDS: "30"
-  SQS_PLANNER_QUEUE: hyperloop-planner-queue-dev
-  SQS_CODING_QUEUE: hyperloop-coding-queue-dev
-  SQS_FIX_QUEUE: hyperloop-fix-queue-dev
+api:
+  replicaCount: 2
+  # Replaces Dockerfile CMD under tini ENTRYPOINT
+  args: ["node", "dist/index.js", "api"]
+  serviceAccount:
+    create: true
+    name: control-plane-api
+    annotations: {}
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  podDisruptionBudget:
+    minAvailable: 1
 
 scheduler:
+  replicaCount: 2
+  args: ["node", "dist/index.js", "scheduler"]
+  serviceAccount:
+    create: true
+    name: control-plane-scheduler
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  podDisruptionBudget:
+    minAvailable: 1
   globalMaxConcurrentJobs: 100
   priorities:
     fix: 100
@@ -33,11 +59,46 @@ scheduler:
     agingEnabled: true
     perProjectLimit: null
 
+env:
+  PORT: "8080"
+  GLOBAL_MAX_CONCURRENT_JOBS: "100"
+  AGENT_NAMESPACE: hyperloop-agents
+  DYNAMODB_TABLE: hyperloop-workflows-dev
+  ARTIFACTS_BUCKET: hyperloop-artifacts-dev
+  SCHEDULER_POLL_INTERVAL_SECONDS: "5"
+  SCHEDULER_RECONCILE_INTERVAL_SECONDS: "30"
+  SQS_DEVSPEC_EVENTS_QUEUE: hyperloop-devspec-events-queue-dev
+  SQS_PLANNER_QUEUE: hyperloop-planner-queue-dev
+  SQS_CODING_QUEUE: hyperloop-coding-queue-dev
+  SQS_FIX_QUEUE: hyperloop-fix-queue-dev
+  AGENT_IMAGE_ALLOWLIST_CONFIGMAP: hyperloop-agent-image-allowlist
+  AGENT_IMAGE_PLANNER: nexus.company.local/hyperloop/kiro-agent-planner:0.1.0
+  AGENT_IMAGE_CODING: nexus.company.local/hyperloop/kiro-agent-coding:0.1.0
+  AGENT_IMAGE_FIX: nexus.company.local/hyperloop/kiro-agent-fix:0.1.0
 
-resources:
-  requests:
-    cpu: 250m
-    memory: 512Mi
-  limits:
-    cpu: "1"
-    memory: 1Gi
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /health
+    initialDelaySeconds: 3
+    periodSeconds: 5
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+rbac:
+  # Only the scheduler SA may manage batch/jobs in hyperloop-agents.
+  createJobManagerRole: true

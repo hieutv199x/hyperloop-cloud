@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hyperloop-agent-image-allowlist
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "agent-job.labels" . | nindent 4 }}
+data:
+  allowlist.json: |
+    {
+      "planner": {{ include "agent-job.imageRef" .Values.images.planner | quote }},
+      "coding": {{ include "agent-job.imageRef" .Values.images.coding | quote }},
+      "fix": {{ include "agent-job.imageRef" .Values.images.fix | quote }}
+    }
+  job-defaults.json: |
+    {
+      "backoffLimit": {{ .Values.backoffLimit }},
+      "ttlSecondsAfterFinished": {{ .Values.ttlSecondsAfterFinished }},
+      "restartPolicy": {{ .Values.restartPolicy | quote }},
+      "activeDeadlineSeconds": {{ .Values.activeDeadlineSeconds }},
+      "nodeSelector": {{ .Values.jobDefaults.nodeSelector | toJson }},
+      "tolerations": {{ .Values.jobDefaults.tolerations | toJson }},
+      "serviceAccounts": {
+        "planner": {{ .Values.serviceAccounts.planner.name | quote }},
+        "coding": {{ .Values.serviceAccounts.coding.name | quote }},
+        "fix": {{ .Values.serviceAccounts.fix.name | quote }}
+      }
+    }

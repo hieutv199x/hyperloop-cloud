@@ -1,16 +1,40 @@
+# Agent Pods must not create Jobs or mutate global quota.
+# No RoleBinding grants batch/jobs to these ServiceAccounts.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: hyperloop-agent
+  name: hyperloop-agent-planner
   namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    hyperloop.dev/agent-role: planner
 ---
-# Intentionally empty RoleBinding for Job-create / DynamoDB quota mutation.
-# Agents must not create Jobs or mutate global capacity.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hyperloop-agent-coding
+  namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    hyperloop.dev/agent-role: coding
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hyperloop-agent-fix
+  namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    hyperloop.dev/agent-role: fix
+---
+# Optional: agents may read their own Pod metadata only (no list/watch cluster-wide).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: hyperloop-agent-readonly-self
   namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
 rules:
   - apiGroups: [""]
     resources: ["pods"]

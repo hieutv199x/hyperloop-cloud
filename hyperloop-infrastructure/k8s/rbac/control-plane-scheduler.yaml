@@ -1,0 +1,39 @@
+# Only control-plane-scheduler (in hyperloop-system) may manage Jobs in hyperloop-agents.
+# control-plane-api must NOT be a subject of this RoleBinding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: control-plane-scheduler-jobs
+  namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    app.kubernetes.io/component: control-plane-scheduler
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+    resourceNames:
+      - hyperloop-agent-image-allowlist
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: control-plane-scheduler-jobs
+  namespace: hyperloop-agents
+  labels:
+    app.kubernetes.io/part-of: hyperloop
+    app.kubernetes.io/component: control-plane-scheduler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: control-plane-scheduler-jobs
+subjects:
+  - kind: ServiceAccount
+    name: control-plane-scheduler
+    namespace: hyperloop-system
